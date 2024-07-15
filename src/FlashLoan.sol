@@ -27,7 +27,7 @@ Package.    Limit                    Profit
 import {FlashLoanSimpleReceiverBase} from "@aave-coreV3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 import {IPoolAddressesProvider} from "@aave-coreV3/contracts/interfaces/IPoolAddressesProvider.sol";
 import {IERC20} from "@aave-coreV3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
-import { IUniswapV3 } from "../interfaces/IUniswapV3.sol";
+import { IUniswapV3 } from "./interfaces/IUniswapV3.sol";
 import { IV2SwapRouter } from "./interfaces/IV2SwapRouter.sol";
 
 contract FlashLoan is FlashLoanSimpleReceiverBase {
@@ -80,14 +80,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     }
 
     // ------------------------------------------ CONSTRUCTOR -----------------------------------------------
-    constructor(
-        address paymentToken_
-    ) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(POOL_ADDRESS)) {
-        // contract addresses on polygon
-        //   quickswap routerV2: 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff
-        //   sushiswap routerV2: 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506
-        // uniswap routerV3: 0xE592427A0AEce92De3Edee1F18E0157C05861564
-        i_owner = payable(msg.sender);
+
+     /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor(address paymentToken_) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(POOL_ADDRESS)) {
+         i_owner = payable(msg.sender);
         i_paymentToken = IERC20(paymentToken_);
     }
 
@@ -114,16 +110,23 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // --------------------------------------- EXTERNAL & INTERNAL FUNCTIONS ---------------------------------------------
     receive() external payable {} // in case we want this contract tobe able to receive ether
 
-    function withdrawProfit() external returns(bool withdrew) {}
-
-    function restrictAccountActions(address account) external OnlyOwner {
+    function withdrawProfit() external returns(bool withdrew) {
 
     }
 
-    function blacklistAccounts(address accountToBlacklist_) external OnlyOwner IsValidAddress {
+    function restrictAccountActions(address account, bool tradeAllowed, bool withdrawAllowed) external OnlyOwner IsValidAddress returns(bool) {
+        user[account].isTradeAllowed = tradeAllowed;
+        user[account].isWithdrawAllowed = withdrawAllowed;
+        return true;
+    }
+
+    function blacklistAccounts(address accountToBlacklist_) external OnlyOwner IsValidAddress returns(bool) {
         accountBlacklisted[accountToBlacklist_] = true;
+        accountBlacklisted[accountToBlacklist_];
     }
 
+
+    function _arbitrageTrade() internal {}
     /**
     @dev buy package
     @param packageTypes_ - types of package
@@ -239,7 +242,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     }
 
 
-    function requestLoan(address asset_, uint256 amount_) external {
+    function requestLoan(address asset_, uint256 amount_) external IsValidAddress NotBacklisted {
         address receiverAddress = address(this); // receiver will be this contract
         address asset = asset_; // we can borrow more than one assets
         uint256 amount = amount_;
@@ -257,33 +260,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
          );
     }
 
-    function _getTokenToTrade( 
-        address tokenIn, 
-        address tokenOut, 
-        uint256 amountTokenIn, 
-        uint256 amountTokenOut) internal pure returns(address, address, uint256, uint256) {
-            return (tokenIn, tokenOut, amountTokenIn, amountTokenOut);
-    }
-
-    // function _buyOnDex1() internal { 
-    //     //  () = getTokenToTrade();
-
-    //      if(IERC20(tokenIn).balanceOf(msg.sender) < amountTokenIn) {
-    //         revert FlashLoan_NeotEnoughBalance();
-    //      }   
-    //     //  on the frontend user need to approve this much of token to spend by flashLoan contract
-    //      IERC20(tokenIn).transferFrom(msg.sender, address(router), amountTokenIn);
-    //      uint256 amountOutMin = 1;
-    //      uint256 deadline = block.timestamp;
-
-    //     //  path to route a trade
-    //      address[] memory path = new address[](2);
-    //      path[0] = tokenIn;
-    //      path[1] = tokenOut;
-
-    //      router.swapExactTokensForTokens(amountTokenIn, amountOutMin, path, address(this), deadline);
-    // }
-
     function getTotalBorrowed() public view returns(uint256) {
 
     }
@@ -292,14 +268,21 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-
-    function getBalance(address tokenAddr) public returns(uint256 balance) {
-        balance = IERC20(tokenAddr).balanceOf(address(this));
+    function getUserDetails(address account) external view returns(User memory user_) {
+        user_ = user[account];
     }
 
-    function withdrawFunds(address tokenAddr) external OnlyOwner IsValidAddress returns(bool) {
-        IERC20 token = IERC20(tokenAddr);
-        token.transfer(i_owner, address(this).balance);
+    function getBalance(address tokenAddr) public returns(uint256 balance) {
+        balance = i_paymentToken.balanceOf(address(this));
+    }
+
+    function withdrawFunds() external OnlyOwner IsValidAddress returns(bool) {
+        uint256 availableFunds = i_paymentToken.balanceOf(address(this));
+        if(availableFunds > 0) {
+            i_paymentToken.transfer(i_owner, address(this).balance);
+        }
+
+
     } 
 
 }

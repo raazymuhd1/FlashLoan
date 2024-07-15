@@ -4,6 +4,7 @@ out = "out"
 libs = ["lib"]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/", 
+    "@openzeppelin/contracts-upgrade/=lib/openzeppelin-contracts-upgradeable/contracts/",
     "forge-std/=lib/forge-std/src/", 
     "@aave-coreV3/contracts/=lib/aave-v3-core/contracts/", 
     "@uniswap/v2-periphery/contracts/=lib/v2-periphery/contracts",
