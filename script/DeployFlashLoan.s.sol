@@ -10,6 +10,8 @@ contract DeployFlashLoan is Script {
     FlashLoan flashLoan;
     // POOL ADDRESS ON SEPOLIA
     address private constant POOL_ADDRESS = 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A;
+    // POOL address on polygon mumbai
+    // address private constant POOL_ADDRESS = 0x4CeDCB57Af02293231BAA9D39354D6BFDFD251e0;
 
     MockFlashLoanSimpleReceiver simpleFlashLoanMock;
     MockPoolAddressesProvider mockPoolAddressProvider;
@@ -19,11 +21,12 @@ contract DeployFlashLoan is Script {
         vm.startBroadcast();
         // mockPoolAddressProvider = new MockPoolAddressesProvider();
         // simpleFlashLoanMock = new MockFlashLoanSimpleReceiver(mockPoolAddressProvider);
-        flashLoan = new FlashLoan(POOL_ADDRESS); 
+        address paymentToken = 0xA02f6adc7926efeBBd59Fd43A84f4E0c0c91e832;
+        flashLoan = new FlashLoan(paymentToken); 
         vm.stopBroadcast();
 
-        console.log(address(flashLoan));
-        return flashLoan;
+        // console.log(address(flashLoan));
+        // return flashLoan;
 
     // forge test --match-test test_flashExist --rpc-url $SEPOLIA_RPC_URL -vvvv
 
