@@ -26,7 +26,7 @@ Package.    Limit                    Profit
 
 import {FlashLoanSimpleReceiverBase} from "@aave-coreV3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 import {IPoolAddressesProvider} from "@aave-coreV3/contracts/interfaces/IPoolAddressesProvider.sol";
-import {IERC20} from "@aave-coreV3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
+import {IERC20} from "./mocks/ERC20Test.sol";
 import { IUniswapV3 } from "./interfaces/IUniswapV3.sol";
 import { IV2SwapRouter } from "./interfaces/IV2SwapRouter.sol";
 
@@ -35,22 +35,31 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     error FlashLoan_ZeroAddress();
     error FlashLoan_NotEnoughBalance();
     error FlashLoan_AcountBlacklisted();
+    error FlashLoan_NoAssetBeingPassed();
+    error FLashLoan_UserNotRegistered();
+    error FlashLoan_ProfitStillZero();
+    error FlashLoan_WithdrawFeeNotEnough();
 
     // --------------------------- STATE VARIABLES --------------------------------------
-    uint256 private constant PRECISION = 1e6; // six decimal places for USDT
+    uint256 private constant PRECISION = 1e18; // six decimal places for USDT
     uint256 private constant MINIMUM_PURCHASING = 500;
     uint256 private constant THOUSAND = 1000;
     uint256 private constant THREE_THOUSAND = 3000;
     uint256 private constant FIVE_THOUSAND = 5000;
     uint256 private constant TEN_THOUSAND = 10000;
+    uint256 private constant PROFIT_WD_FEE = 0.001 ether;
     address payable private immutable i_owner;
     IERC20 private immutable i_paymentToken; // payment for purchasing packages
+    address private immutable i_poolAddress;
     uint32[] private packagesLists = [500, 1000, 3000, 5000, 10000];
+    uint256 private borrowedAmountInTotal = 0;
 
     // EXTERNAL CONTRACTS On Mumbai Testnets
-    address private constant POOL_ADDRESS = 0x4CeDCB57Af02293231BAA9D39354D6BFDFD251e0; // polygon testnet;
-    IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0xE592427A0AEce92De3Edee1F18E0157C05861564);
-    IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506);
+    // address private constant POOL_ADDRESS = 0x4CeDCB57Af02293231BAA9D39354D6BFDFD251e0; // polygon testnet;
+    // UNISWAP V3 Router on polygon 0xE592427A0AEce92De3Edee1F18E0157C05861564
+    // SUSHISWAP V2 Router on polygon 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506
+    IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E); 
+    IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0xeaBcE3E74EF41FB40024a21Cc2ee2F5dDc615791); 
     IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff);
 
     // ------------------------ MAPPINGS ----------------------------------------
@@ -59,7 +68,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     struct User {
         address userAddress;
-        uint256 profit;
+        uint256 dailyProfit;
         uint256 totalBorrowed;
         uint256 totalProfit;
         uint256 totalTrades;
@@ -82,9 +91,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // ------------------------------------------ CONSTRUCTOR -----------------------------------------------
 
      /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address paymentToken_) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(POOL_ADDRESS)) {
-         i_owner = payable(msg.sender);
+    constructor(address paymentToken_, address poolAddress_, address payable owner_) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(poolAddress_)) {
+         i_owner = owner_;
         i_paymentToken = IERC20(paymentToken_);
+        i_poolAddress = poolAddress_;
     }
 
     // ------------------------------------------ EVENTS -----------------------------------------------------
@@ -102,7 +112,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         _;
     }
 
-    modifier NotBacklisted() {
+    modifier NotBlacklisted() {
         if(accountBlacklisted[msg.sender] == true) revert FlashLoan_AcountBlacklisted();
         _;
     }
@@ -110,11 +120,16 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // --------------------------------------- EXTERNAL & INTERNAL FUNCTIONS ---------------------------------------------
     receive() external payable {} // in case we want this contract tobe able to receive ether
 
-    function withdrawProfit() external returns(bool withdrew) {
+    function withdrawProfit(uint256 amountToWd) external payable IsValidAddress NotBlacklisted returns(bool withdrew) {
+        if(user[msg.sender].totalProfit <= 0) revert FlashLoan_ProfitStillZero(); 
+        if(msg.value < PROFIT_WD_FEE) revert FlashLoan_WithdrawFeeNotEnough();
 
+        user[msg.sender].totalProfit -= amountToWd;
+        i_paymentToken.transferFrom(address(this), msg.sender,amountToWd);
     }
 
     function restrictAccountActions(address account, bool tradeAllowed, bool withdrawAllowed) external OnlyOwner IsValidAddress returns(bool) {
+        if(account != user[account].userAddress) revert FLashLoan_UserNotRegistered();
         user[account].isTradeAllowed = tradeAllowed;
         user[account].isWithdrawAllowed = withdrawAllowed;
         return true;
@@ -122,54 +137,68 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     function blacklistAccounts(address accountToBlacklist_) external OnlyOwner IsValidAddress returns(bool) {
         accountBlacklisted[accountToBlacklist_] = true;
-        accountBlacklisted[accountToBlacklist_];
+        return accountBlacklisted[accountToBlacklist_];
     }
 
+    function checkBlacklistedAccount(address account) external view returns(bool) {
+        return accountBlacklisted[account];
+    }
 
     function _arbitrageTrade() internal {}
+
+
     /**
     @dev buy package
     @param packageTypes_ - types of package
     @param payAmount_ - amount of user needs to pay for the package
      */
-     function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBacklisted returns(User memory) {
+     function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
         if(payAmount_ < MINIMUM_PURCHASING * PRECISION) revert FlashLoan_NotEnoughBalance();
-        _altPackageChecking(packageTypes_, payAmount_);
+        uint32 typesOfPckg = _altPackageChecking(packageTypes_, payAmount_);
         i_paymentToken.transfer(address(this), payAmount_);
 
+        emit Purchasing_Successfull(msg.sender, typesOfPckg);
         return user[msg.sender];
      }
 
 
-     function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal {
+     function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal returns(uint32) {
         user[msg.sender] = User(msg.sender, 0, 0, 0, 0, Packages.FiveHundreds, 50, 20, true, true, true); // set default values
         User memory newUser = user[msg.sender];
+        uint32 typesOfPackage;
 
         if(packageTypes_ == packagesLists[0] && payAmount_ >=  MINIMUM_PURCHASING * PRECISION) {
             newUser.packageType = Packages.FiveHundreds;
             newUser.dailyProfitLimit = 20 * PRECISION;
             newUser.dailyLimitTrade = 50 * PRECISION;
+            typesOfPackage = packagesLists[0];
 
         } else if(packageTypes_ == packagesLists[1] && payAmount_ >= THOUSAND * PRECISION) {
             newUser.packageType = Packages.Thousands;
             newUser.dailyProfitLimit = 40 * PRECISION;
             newUser.dailyLimitTrade = 100 * PRECISION;
+            typesOfPackage = packagesLists[1];
         }
          else if(packageTypes_ == packagesLists[2] && payAmount_ >= THREE_THOUSAND * PRECISION) {
             newUser.packageType = Packages.ThreeThousands;
             newUser.dailyProfitLimit = 120 * PRECISION;
             newUser.dailyLimitTrade = 300 * PRECISION;
+            typesOfPackage = packagesLists[2];
         }
          else if(packageTypes_ == packagesLists[3] && payAmount_ >= FIVE_THOUSAND * PRECISION) {
             newUser.packageType = Packages.TenThousands;
             newUser.dailyProfitLimit = 200 * PRECISION;
             newUser.dailyLimitTrade = 500 * PRECISION;
+            typesOfPackage = packagesLists[3];
         }
          else if(packageTypes_ == packagesLists[3] && payAmount_ >= TEN_THOUSAND * PRECISION) {
             newUser.packageType = Packages.FiveHundreds;
             newUser.dailyProfitLimit = 400 * PRECISION;
             newUser.dailyLimitTrade = 1000 * PRECISION;
+            typesOfPackage = packagesLists[4];
         }
+
+        return typesOfPackage;
      }
 
     //  function _packageChecking(string memory packageTypes_) internal returns(Packages package) {
@@ -190,39 +219,59 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     //     }
     //  }
 
-    // function sushiswap(address tokenIn, address tokenOut, uint256 amount) internal  returns(uint256[] memory) {
-    //     IERC20(tokenIn).approve(sushiSwapAddress, amount);
-    //     address[] memory pair = new address[](2);
-    //     pair[1] = tokenIn;
-    //     pair[2] = tokenOut; 
-    //     uint256[] memory  amounts = IV2SwapRouter(sushiSwapAddress).swapTokensForExactTokens(
-    //             amount,
-    //             0,
-    //             pair,
-    //             address(this),
-    //             block.timestamp + 86400
-    //         );
-    //     return amounts;
-        
-    // }
+     function uniswapV3(address tokenIn, address tokenOut, uint256 amount) external IsValidAddress NotBlacklisted returns(uint256) {
+        // transfer the tokenIn amount to this contract
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amount);
+        // then this contract approved uniswap router to pull the tokenIn amount
+        IERC20(tokenIn).approve(address(UNISWAP_ROUTERV3), amount); 
+        IUniswapV3.ExactInputSingleParams memory params =
+            IUniswapV3.ExactInputSingleParams({
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                fee: 3000,
+                recipient: address(this),
+                amountIn: amount,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
 
-    // function quickSwap(address tokenIn, address tokenOut, uint256 amount) internal returns(uint256){
-    //     IERC20(tokenIn).approve(qucikswapAddress, amount);
-    //     IV2SwapRouter.SushiswapParams memory params =
-    //         IV2SwapRouter.SushiswapParams({
-    //             tokenIn: tokenIn,
-    //             tokenOut: tokenOut,
-    //             recipient: address(this),
-    //             deadline: block.timestamp + 86400,
-    //             amountIn: amount,
-    //             amountOutMinimum: 0,
-    //             limitSqrtPrice: 0
-    //         });
+        uint256 amountOut = UNISWAP_ROUTERV3.exactInputSingle(params);
+        return amountOut;
 
-    //     uint256 amountOut = IV2SwapRouter(qucikswapAddress).exactInputSingle(params);
-    //     return amountOut;
+    }
+
+    function sushiswap(address tokenIn, address tokenOut, uint256 amount) internal IsValidAddress NotBlacklisted returns(uint256[] memory) {
+        IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amount);
+        address[] memory pair = new address[](2);
+        pair[1] = tokenIn;
+        pair[2] = tokenOut; 
+        uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapTokensForExactTokens(
+                amount,
+                0,
+                pair,
+                address(this),
+                block.timestamp + 86400
+            );
+        return amounts;
         
-    // }
+    }
+
+    function quickSwap(address tokenIn, address tokenOut, uint256 amount) internal IsValidAddress NotBlacklisted returns(uint256){
+        IERC20(tokenIn).approve(address(QUICKSWAP_ROUTERV2), amount);
+        IV2SwapRouter.SushiswapParams memory params =
+            IV2SwapRouter.SushiswapParams({
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                recipient: address(this),
+                amountIn: amount,
+                amountOutMinimum: 0,
+                limitSqrtPrice: 0
+            });
+
+        uint256 amountOut = QUICKSWAP_ROUTERV2.exactInputSingle(params);
+        return amountOut;
+        
+    }
 
 
     // this function wil be call by aave pool 
@@ -236,13 +285,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
         // perform an arbitrage here..
 
-         uint256 amountOwed = amount + premium; // repay amount amount we borrow + fee ( premium )
+         uint256 amountOwed = amount + premium; // repay amount we borrow + fee ( premium )
          IERC20(asset).approve(address(POOL), amountOwed); // give a permission to an aave lending pool to take back the loaned fund 
          return true;
     }
 
 
-    function requestLoan(address asset_, uint256 amount_) external IsValidAddress NotBacklisted {
+    function requestLoan(address asset_, uint256 amount_) external IsValidAddress NotBlacklisted {
         address receiverAddress = address(this); // receiver will be this contract
         address asset = asset_; // we can borrow more than one assets
         uint256 amount = amount_;
@@ -251,20 +300,26 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
         //  flashloan simple function can only borrow one asset
         // while flashloan function can borrow more than one asset
-         POOL.flashLoanSimple(
-            receiverAddress,
-            asset,
-            amount,
-            params,
-            refCode
-         );
+        if(asset_ != address(0) && amount_ > 0) {
+            POOL.flashLoanSimple(
+                receiverAddress,
+                asset,
+                amount,
+                params,
+                refCode
+            );
+           borrowedAmountInTotal += amount_;
+           return;
+        }
+
+        revert FlashLoan_NoAssetBeingPassed();
     }
 
-    function getTotalBorrowed() public view returns(uint256) {
-
+    function getTotalBorrowed() public view returns(uint256 totalBorrowed) {
+        totalBorrowed = borrowedAmountInTotal;
     }
 
-    function getTotalTrade() external view returns(uint256) {
+    function getTotalTraded() external view returns(uint256) {
 
     }
 
@@ -272,17 +327,22 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         user_ = user[account];
     }
 
-    function getBalance(address tokenAddr) public returns(uint256 balance) {
+    function getOwner() external view returns(address) {
+        return i_owner;
+    }
+
+    function getBalance(address tokenAddr) public view returns(uint256 balance) {
         balance = i_paymentToken.balanceOf(address(this));
     }
 
-    function withdrawFunds() external OnlyOwner IsValidAddress returns(bool) {
+    function withdrawFunds() external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
         uint256 availableFunds = i_paymentToken.balanceOf(address(this));
         if(availableFunds > 0) {
             i_paymentToken.transfer(i_owner, address(this).balance);
+            return true;
         }
 
-
+        return false;
     } 
 
 }

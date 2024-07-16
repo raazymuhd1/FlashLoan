@@ -5,7 +5,7 @@ import { PoolAddressesProvider } from "@aave-coreV3/contracts/protocol/configura
 
 contract MockPoolAddressesProvider is PoolAddressesProvider {
 
-    constructor() PoolAddressesProvider("0", msg.sender) {
+    constructor(address owner_) PoolAddressesProvider("0",owner_) {
         
     }
 }
