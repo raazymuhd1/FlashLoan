@@ -135,6 +135,12 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         withdrew = true; 
     }
 
+    /**
+        @dev account restrictions from trade, purchase package, and withdraw
+        @param account - account to restricted
+        @param  tradeAllowed - true if allowed / false if not allowed 
+        @param  withdrawAllowed - true if allowed / false if not allowed 
+     */
     function restrictAccountActions(address account, bool tradeAllowed, bool withdrawAllowed) external OnlyOwner IsValidAddress returns(bool) {
         if(account != user[account].userAddress) revert FLashLoan_UserNotRegistered();
         user[account].isTradeAllowed = tradeAllowed;
@@ -142,6 +148,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         return true;
     }
 
+    /**
+        @dev blacklist an account by owner only
+        @param accountToBlacklist_ - account target to blacklist
+     */
     function blacklistAccounts(address accountToBlacklist_) external OnlyOwner IsValidAddress returns(bool) {
         accountBlacklisted[accountToBlacklist_] = true;
         return accountBlacklisted[accountToBlacklist_];
@@ -250,7 +260,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 tokenOut: tokenOut,
                 fee: 3000,
                 recipient: address(this),
-                deadline: block.timestamp,
+                deadline: 0,
                 amountIn: amount,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
@@ -333,6 +343,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 refCode
             );
            borrowedAmountInTotal += amount_;
+           return;
         }
 
         revert FlashLoan_NoAssetBeingPassed();
@@ -358,14 +369,14 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         return i_owner;
     }
 
-    function getBalance(address tokenAddr) public view returns(uint256 balance) {
+    function getTotalFunds() public view returns(uint256 balance) {
         balance = i_paymentToken.balanceOf(address(this));
     }
 
     function withdrawFunds() external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
         uint256 availableFunds = i_paymentToken.balanceOf(address(this));
         if(availableFunds > 0) {
-            i_paymentToken.transfer(i_owner, address(this).balance);
+            i_paymentToken.transfer(i_owner, availableFunds);
             return true;
         }
 

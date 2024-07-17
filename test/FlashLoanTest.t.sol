@@ -17,8 +17,8 @@ contract FlashLoanTest is Test {
     address WETH_SEPOL = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
     // address USDT_SEPOL = 0xAF0F6e8b0Dc5c913bbF4d14c22B4E78Dd14310B6; // usdt sepolia aave
     address USDT_SEPOL = 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0; // usdt sepolia
-    // address public USER = 0x34699bE6B2a22E79209b8e9f9517C5e18db7eB89;
-    address public USER = makeAddr("USER");
+    address public USER = 0x34699bE6B2a22E79209b8e9f9517C5e18db7eB89;
+    // address public USER = makeAddr("USER");
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     uint256 public PRECISION = 1e6;
@@ -35,6 +35,17 @@ contract FlashLoanTest is Test {
         vm.prank(USER);
         bool isBlacklisted = flashloan.blacklistAccounts(BLACKLISTED_USER);
         console.log(isBlacklisted);
+        _;
+    }
+
+    modifier PurchasingPackage(address caller) {
+        uint32 pckgType = 1000;
+
+        vm.startPrank(caller);
+        mockERC20.mintToken();
+        mockERC20.approve(address(flashloan), TEST_BUY_AMT);
+        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
+        vm.stopPrank();
         _;
     }
 
@@ -100,22 +111,32 @@ contract FlashLoanTest is Test {
        assert(afterBlacklisted == true);
    }
 
-   function test_restrictAccount() public {
+   function test_restrictAccount() public PurchasingPackage(ANOTHER_USER) {
         bool tradeAllowed = false;
         bool withdrawAllowed = false;
-        uint32 pckgType = 1000;
 
         vm.startPrank(USER);
-        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
-        console.log(user.isTradeAllowed);
         bool restricted = flashloan.restrictAccountActions(ANOTHER_USER, tradeAllowed, withdrawAllowed);
         console.log(restricted);
-        FlashLoan.User memory userAfterRestricted = flashloan.getUserDetails(BLACKLISTED_USER);
+        FlashLoan.User memory userAfterRestricted = flashloan.getUserDetails(ANOTHER_USER);
         console.log("after restricted");
         console.log(userAfterRestricted.isTradeAllowed);
         vm.stopPrank();
 
         assert(restricted == true);
+   }
+
+   function test_withdrawProfit() public PurchasingPackage(ANOTHER_USER) {
+        uint256 amountToWd = 100 * PRECISION;
+        vm.startPrank(ANOTHER_USER);
+        bool withdrew = flashloan.withdrawProfit(amountToWd);
+   }
+
+   function test_withdrawFundsByOwner() public PurchasingPackage(ANOTHER_USER) {
+      vm.startPrank(USER);
+      bool success = flashloan.withdrawFunds();
+
+      console.log(success);
    }
 
    function test_tradeOnUniswap() public {
@@ -130,7 +151,7 @@ contract FlashLoanTest is Test {
    }
 
    function test_tradeOnSushiswap() public {
-      uint256 testAmt = 10 * 1e6;
+      uint256 testAmt = 10;
       vm.startPrank(USER);
       IERC20(USDT_SEPOL).approve(address(flashloan), testAmt);
      if(testAmt != type(uint256).max) {
@@ -140,11 +161,28 @@ contract FlashLoanTest is Test {
    }
 
    function test_borrowAsset() public {
-      uint256 testAmt = 10 * 1e6;
+      uint256 testAmt = 10;
       vm.startPrank(USER);
-      flashloan.requestLoan(WETH_SEPOL, testAmt);
+      flashloan.requestLoan(USDT_SEPOL, testAmt);
       console.log("borrowed");
       vm.stopPrank();
+   }
+
+   function test_getUserDetails() public PurchasingPackage(ANOTHER_USER) {
+        vm.prank(USER);
+        FlashLoan.User memory user = flashloan.getUserDetails(ANOTHER_USER);
+        console.log(user.userAddress);
+
+        assert(user.userAddress == ANOTHER_USER);
+   }
+
+
+   function test_getPackagesList() public {
+      vm.prank(USER);
+      uint32[] memory packages = flashloan.getPackagesList();
+      console.log(packages[0]);
+
+      assert(packages[0] == 500);
    }
 
 }

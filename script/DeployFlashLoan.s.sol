@@ -25,15 +25,12 @@ contract DeployFlashLoan is Script {
         vm.startBroadcast();
         mockPoolAddressProvider = new MockPoolAddressesProvider(poolOwner_);
         erc20Mock = new ERC20Mock();
-        flashLoan = new FlashLoan(address(erc20Mock), address(mockPoolAddressProvider), flashloanOwner_); 
+        // flashLoan = new FlashLoan(address(erc20Mock), address(mockPoolAddressProvider), flashloanOwner_); 
         // flashLoan = new FlashLoan(USDT_POL, POOL_POLYGON); 
-        // flashLoan = new FlashLoan(USDT_SEPOL, POOL_ADDRESS); 
+        flashLoan = new FlashLoan(USDT_SEPOL, POOL_ADDRESS, flashloanOwner_); 
         // flashloan.requestLoan(USDT_SEPOL, testAmount);
         vm.stopBroadcast();
 
         return (flashLoan, erc20Mock);
-
-    // forge test --match-test test_flashExist --rpc-url $SEPOLIA_RPC_URL -vvvv
-
     }
 }
