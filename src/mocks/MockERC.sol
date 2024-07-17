@@ -5,7 +5,7 @@ import {ERC20Test} from "./ERC20Test.sol";
 
 contract ERC20Mock is ERC20Test {
 
-    uint256 public constant TEST_AMOUNT = 1000_000 * 1e18;
+    uint256 public constant TEST_AMOUNT = 1000_000 * 1e6;
 
     constructor() ERC20Test("USDTMock", "MockUSDT") {}
 

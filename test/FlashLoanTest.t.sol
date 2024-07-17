@@ -13,13 +13,15 @@ contract FlashLoanTest is Test {
     FlashLoan flashloan;
     ERC20Mock mockERC20;
 
+    // deployed uniswap router V2 0x847E6d048C6779872D13C81aF653D840d5C7575f
     address WETH_SEPOL = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
-    address USDT_SEPOL = 0xAF0F6e8b0Dc5c913bbF4d14c22B4E78Dd14310B6; // usdt sepolia aave
-    // address USDT_SEPOL = 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0; // usdt sepolia
+    // address USDT_SEPOL = 0xAF0F6e8b0Dc5c913bbF4d14c22B4E78Dd14310B6; // usdt sepolia aave
+    address USDT_SEPOL = 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0; // usdt sepolia
+    // address public USER = 0x34699bE6B2a22E79209b8e9f9517C5e18db7eB89;
     address public USER = makeAddr("USER");
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = makeAddr("ANOTHER_USER");
-    uint256 public PRECISION = 1e18;
+    uint256 public PRECISION = 1e6;
     uint256 public TEST_BUY_AMT = 500 * PRECISION;
 
     function setUp() public {
@@ -29,7 +31,7 @@ contract FlashLoanTest is Test {
         vm.deal(USER, 10 ether);
     }
 
-    function test_puchasingPackage() public {
+    function test_purchasingPackage() public {
         uint256 amount_ = 10;
         uint32 pckgType = 500;
 
@@ -43,6 +45,7 @@ contract FlashLoanTest is Test {
         console.log(userBfore.userAddress);
 
         if(userBalance > 0) {
+            mockERC20.approve(address(flashloan), TEST_BUY_AMT);
             FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
             console.log(userAfter.userAddress);
         }
@@ -75,20 +78,30 @@ contract FlashLoanTest is Test {
    }
 
    function test_tradeOnUniswap() public {
+      uint256 testAmt = 10;
+      vm.startPrank(USER);
+      IERC20(USDT_SEPOL).approve(address(flashloan), testAmt);
+     if(testAmt != type(uint256).max) {
+        uint256 tradedAmount = flashloan.uniswapV3(USDT_SEPOL, WETH_SEPOL, testAmt);
+        console.log(tradedAmount);
+     }
+     vm.stopPrank();
+   }
+
+   function test_tradeOnSushiswap() public {
       uint256 testAmt = 10 * 1e6;
       vm.startPrank(USER);
-    //   IERC20(USDT_SEPOL).approve(address(flashloan), testAmt);
-    //  if(testAmt != type(uint256).max) {
-    //     uint256 tradedAmount = flashloan.uniswapV3(USDT_SEPOL, WETH_SEPOL, testAmt);
-    //     console.log(tradedAmount);
-    //  }
+      IERC20(USDT_SEPOL).approve(address(flashloan), testAmt);
+     if(testAmt != type(uint256).max) {
+        uint256[] memory tradedAmount = flashloan.sushiswap(USDT_SEPOL, WETH_SEPOL, testAmt);
+     }
      vm.stopPrank();
    }
 
    function test_borrowAsset() public {
       uint256 testAmt = 10 * 1e6;
       vm.startPrank(USER);
-      flashloan.requestLoan(USDT_SEPOL, testAmt);
+      flashloan.requestLoan(WETH_SEPOL, testAmt);
       console.log("borrowed");
       vm.stopPrank();
    }

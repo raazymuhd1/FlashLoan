@@ -41,7 +41,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     error FlashLoan_WithdrawFeeNotEnough();
 
     // --------------------------- STATE VARIABLES --------------------------------------
-    uint256 private constant PRECISION = 1e18; // six decimal places for USDT
+    uint256 private constant PRECISION = 1e6; // six decimal places for USDT
     uint256 private constant MINIMUM_PURCHASING = 500;
     uint256 private constant THOUSAND = 1000;
     uint256 private constant THREE_THOUSAND = 3000;
@@ -59,7 +59,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // UNISWAP V3 Router on polygon 0xE592427A0AEce92De3Edee1F18E0157C05861564
     // SUSHISWAP V2 Router on polygon 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506
     IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E); 
-    IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0xeaBcE3E74EF41FB40024a21Cc2ee2F5dDc615791); 
+    // IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0xeaBcE3E74EF41FB40024a21Cc2ee2F5dDc615791); 
+    IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0x847E6d048C6779872D13C81aF653D840d5C7575f); 
     IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff);
 
     // ------------------------ MAPPINGS ----------------------------------------
@@ -155,7 +156,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
         if(payAmount_ < MINIMUM_PURCHASING * PRECISION) revert FlashLoan_NotEnoughBalance();
         uint32 typesOfPckg = _altPackageChecking(packageTypes_, payAmount_);
-        i_paymentToken.transfer(address(this), payAmount_);
+        i_paymentToken.transferFrom(msg.sender, address(this), payAmount_);
 
         emit Purchasing_Successfull(msg.sender, typesOfPckg);
         return user[msg.sender];
@@ -230,6 +231,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 tokenOut: tokenOut,
                 fee: 3000,
                 recipient: address(this),
+                deadline: block.timestamp,
                 amountIn: amount,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
@@ -240,17 +242,19 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-    function sushiswap(address tokenIn, address tokenOut, uint256 amount) internal IsValidAddress NotBlacklisted returns(uint256[] memory) {
+    function sushiswap(address tokenIn, address tokenOut, uint256 amount) external IsValidAddress NotBlacklisted returns(uint256[] memory) {
+
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amount);
         IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amount);
         address[] memory pair = new address[](2);
         pair[1] = tokenIn;
         pair[2] = tokenOut; 
         uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapTokensForExactTokens(
-                amount,
                 0,
+                amount,
                 pair,
                 address(this),
-                block.timestamp + 86400
+                block.timestamp
             );
         return amounts;
         
@@ -263,6 +267,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 tokenIn: tokenIn,
                 tokenOut: tokenOut,
                 recipient: address(this),
+                deadline: block.timestamp,
                 amountIn: amount,
                 amountOutMinimum: 0,
                 limitSqrtPrice: 0
@@ -309,7 +314,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 refCode
             );
            borrowedAmountInTotal += amount_;
-           return;
         }
 
         revert FlashLoan_NoAssetBeingPassed();
