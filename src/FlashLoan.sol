@@ -39,6 +39,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     error FLashLoan_UserNotRegistered();
     error FlashLoan_ProfitStillZero();
     error FlashLoan_WithdrawFeeNotEnough();
+    error FlashLoan_CannotWdAboveProfit();
 
     // --------------------------- STATE VARIABLES --------------------------------------
     uint256 private constant PRECISION = 1e6; // six decimal places for USDT
@@ -100,6 +101,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     // ------------------------------------------ EVENTS -----------------------------------------------------
     event Purchasing_Successfull(address user, uint32 packageType);
+    event Withdrawal_Successfull(address user, uint256 wdAmount);
 
     // -------------------------------------- MODIFIERS -------------------------------------------------------
 
@@ -122,11 +124,15 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     receive() external payable {} // in case we want this contract tobe able to receive ether
 
     function withdrawProfit(uint256 amountToWd) external payable IsValidAddress NotBlacklisted returns(bool withdrew) {
+        if(msg.sender != user[msg.sender].userAddress) revert FLashLoan_UserNotRegistered();
+        if(amountToWd > user[msg.sender].totalProfit) revert FlashLoan_CannotWdAboveProfit();
         if(user[msg.sender].totalProfit <= 0) revert FlashLoan_ProfitStillZero(); 
         if(msg.value < PROFIT_WD_FEE) revert FlashLoan_WithdrawFeeNotEnough();
 
         user[msg.sender].totalProfit -= amountToWd;
         i_paymentToken.transferFrom(address(this), msg.sender,amountToWd);
+        emit Withdrawal_Successfull(msg.sender, amountToWd);
+        withdrew = true; 
     }
 
     function restrictAccountActions(address account, bool tradeAllowed, bool withdrawAllowed) external OnlyOwner IsValidAddress returns(bool) {
@@ -154,7 +160,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     @param payAmount_ - amount of user needs to pay for the package
      */
      function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
-        if(payAmount_ < MINIMUM_PURCHASING * PRECISION) revert FlashLoan_NotEnoughBalance();
+        uint256 userBalance = i_paymentToken.balanceOf(msg.sender);
+        if(payAmount_ < MINIMUM_PURCHASING * PRECISION || userBalance == 0 || userBalance <= payAmount_) revert FlashLoan_NotEnoughBalance();
         uint32 typesOfPckg = _altPackageChecking(packageTypes_, payAmount_);
         i_paymentToken.transferFrom(msg.sender, address(this), payAmount_);
 
@@ -164,40 +171,52 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
 
      function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal returns(uint32) {
-        user[msg.sender] = User(msg.sender, 0, 0, 0, 0, Packages.FiveHundreds, 50, 20, true, true, true); // set default values
-        User memory newUser = user[msg.sender];
+        
+        user[msg.sender] = User(msg.sender, 0, 0, 0, 0, Packages.FiveHundreds, 50, 20, true, true, true); 
         uint32 typesOfPackage;
+        uint256 dailyProfit = 0;
+        uint256 totalBorrowed = 0;
+        uint256 totalProfit = 0;
+        uint256 totalTrades = 0;
+        Packages packageType;
+        uint256 dailyLimitTrade;
+        uint256 dailyProfitLimit;
+        bool isRegistered = true;
+        bool isTradeAllowed = true;
+        bool isWithdrawAllowed = true;
 
         if(packageTypes_ == packagesLists[0] && payAmount_ >=  MINIMUM_PURCHASING * PRECISION) {
-            newUser.packageType = Packages.FiveHundreds;
-            newUser.dailyProfitLimit = 20 * PRECISION;
-            newUser.dailyLimitTrade = 50 * PRECISION;
+            packageType = Packages.FiveHundreds;
+            dailyProfitLimit = 20 * PRECISION;
+            dailyLimitTrade = 50 * PRECISION;
             typesOfPackage = packagesLists[0];
 
         } else if(packageTypes_ == packagesLists[1] && payAmount_ >= THOUSAND * PRECISION) {
-            newUser.packageType = Packages.Thousands;
-            newUser.dailyProfitLimit = 40 * PRECISION;
-            newUser.dailyLimitTrade = 100 * PRECISION;
+            packageType = Packages.Thousands;
+            dailyProfitLimit = 40 * PRECISION;
+            dailyLimitTrade = 100 * PRECISION;
             typesOfPackage = packagesLists[1];
         }
          else if(packageTypes_ == packagesLists[2] && payAmount_ >= THREE_THOUSAND * PRECISION) {
-            newUser.packageType = Packages.ThreeThousands;
-            newUser.dailyProfitLimit = 120 * PRECISION;
-            newUser.dailyLimitTrade = 300 * PRECISION;
+            packageType = Packages.ThreeThousands;
+            dailyProfitLimit = 120 * PRECISION;
+            dailyLimitTrade = 300 * PRECISION;
             typesOfPackage = packagesLists[2];
         }
          else if(packageTypes_ == packagesLists[3] && payAmount_ >= FIVE_THOUSAND * PRECISION) {
-            newUser.packageType = Packages.TenThousands;
-            newUser.dailyProfitLimit = 200 * PRECISION;
-            newUser.dailyLimitTrade = 500 * PRECISION;
+            packageType = Packages.TenThousands;
+            dailyProfitLimit = 200 * PRECISION;
+            dailyLimitTrade = 500 * PRECISION;
             typesOfPackage = packagesLists[3];
         }
          else if(packageTypes_ == packagesLists[3] && payAmount_ >= TEN_THOUSAND * PRECISION) {
-            newUser.packageType = Packages.FiveHundreds;
-            newUser.dailyProfitLimit = 400 * PRECISION;
-            newUser.dailyLimitTrade = 1000 * PRECISION;
+            packageType = Packages.FiveHundreds;
+            dailyProfitLimit = 400 * PRECISION;
+            dailyLimitTrade = 1000 * PRECISION;
             typesOfPackage = packagesLists[4];
         }
+
+        user[msg.sender] = User(msg.sender, dailyProfit, totalBorrowed, totalProfit, totalTrades, packageType, dailyLimitTrade, dailyProfitLimit, isRegistered, isTradeAllowed, isWithdrawAllowed); 
 
         return typesOfPackage;
      }
@@ -325,6 +344,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     function getTotalTraded() external view returns(uint256) {
 
+    }
+
+    function getPackagesList() external view returns(uint32[] memory pckgsList) {
+        pckgsList = packagesLists;
     }
 
     function getUserDetails(address account) external view returns(User memory user_) {

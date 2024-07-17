@@ -22,7 +22,7 @@ contract FlashLoanTest is Test {
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     uint256 public PRECISION = 1e6;
-    uint256 public TEST_BUY_AMT = 500 * PRECISION;
+    uint256 public TEST_BUY_AMT = 1000 * PRECISION;
 
     function setUp() public {
         deployer = new DeployFlashLoan();
@@ -31,9 +31,16 @@ contract FlashLoanTest is Test {
         vm.deal(USER, 10 ether);
     }
 
-    function test_purchasingPackage() public {
+    modifier Blacklisted() {
+        vm.prank(USER);
+        bool isBlacklisted = flashloan.blacklistAccounts(BLACKLISTED_USER);
+        console.log(isBlacklisted);
+        _;
+    }
+
+    function test_purchasingPackageNonBlacklistedAccount() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 500;
+        uint32 pckgType = 5000;
 
         vm.startPrank(USER);
         mockERC20.mintToken();
@@ -42,6 +49,32 @@ contract FlashLoanTest is Test {
         console.log(userBalance);
 
         FlashLoan.User memory userBfore = flashloan.getUserDetails(USER);
+        console.log(userBfore.userAddress);
+
+        if(userBalance > 0) {
+            mockERC20.approve(address(flashloan), TEST_BUY_AMT);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
+            console.log(userAfter.userAddress);
+            uint contractBalance = mockERC20.balanceOf(address(flashloan));
+            console.log("contract balance:");
+            console.log(contractBalance);
+        }
+        vm.stopPrank();
+
+        assert(userBalance > 0);
+    }
+
+    function test_purchasingPackageByBlacklistedAccount() public Blacklisted {
+        uint256 amount_ = 10;
+        uint32 pckgType = 1000;
+
+        vm.startPrank(BLACKLISTED_USER);
+        mockERC20.mintToken();
+        uint256 userBalance = mockERC20.balanceOf(BLACKLISTED_USER);
+        console.log("USDT Balance of this user:");
+        console.log(userBalance);
+
+        FlashLoan.User memory userBfore = flashloan.getUserDetails(BLACKLISTED_USER);
         console.log(userBfore.userAddress);
 
         if(userBalance > 0) {
@@ -63,18 +96,26 @@ contract FlashLoanTest is Test {
        console.log(bforeBlacklisted);
        console.log(afterBlacklisted);
        vm.stopPrank();
-       
+       assert(bforeBlacklisted == false);
        assert(afterBlacklisted == true);
    }
 
    function test_restrictAccount() public {
         bool tradeAllowed = false;
         bool withdrawAllowed = false;
+        uint32 pckgType = 1000;
 
         vm.startPrank(USER);
+        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
+        console.log(user.isTradeAllowed);
         bool restricted = flashloan.restrictAccountActions(ANOTHER_USER, tradeAllowed, withdrawAllowed);
         console.log(restricted);
+        FlashLoan.User memory userAfterRestricted = flashloan.getUserDetails(BLACKLISTED_USER);
+        console.log("after restricted");
+        console.log(userAfterRestricted.isTradeAllowed);
         vm.stopPrank();
+
+        assert(restricted == true);
    }
 
    function test_tradeOnUniswap() public {
