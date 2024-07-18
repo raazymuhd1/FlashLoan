@@ -24,6 +24,12 @@ Package.    Limit                    Profit
 10000$.       1000$ per day     400$
  */
 
+/**
+    @notice limitation with uniswap router v1 is not available on sepolia, only on eth mainnet
+    @notice limitation with uniswap router v2 is on sepolia is not fully working, only on mainnet.
+    @notice limitation with uniswap router v1 on polygon is polygon mumbai has been deprecated, and is not available on AMOY TESTNET yet. only working for polygon mainnet.
+ */
+
 import {FlashLoanSimpleReceiverBase} from "@aave-coreV3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 import {IPoolAddressesProvider} from "@aave-coreV3/contracts/interfaces/IPoolAddressesProvider.sol";
 import {IERC20} from "./mocks/ERC20Test.sol";
@@ -58,13 +64,21 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     uint256 private borrowedAmountInTotal = 0;
 
     // DEXES ROUTER
-    IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45); // POLYGON 
+    IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45); // POLYGON / ETH MAINNET
     IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506); 
     IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff);
 
     // ------------------------ MAPPINGS ----------------------------------------
     mapping(address => User) private user;
     mapping(address => bool) private accountBlacklisted;
+    mapping(address => UserTrade) private s_userTrade;
+
+    struct UserTrade {
+        address userAddress;
+        address[] pair;
+        uint256 amountTokenIn;
+        uint256 amountTokenOut;
+    }
 
     struct User {
         address userAddress;
@@ -110,13 +124,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     modifier IsDailyTradeReached() {
         User memory user_ = user[msg.sender];
-        if(user_.dailyTrade == user_.dailyLimitTrade) revert FlashLoan_DailyTradeAmountHasReached();
+        if(user_.dailyTrade > 0 && user_.dailyTrade == user_.dailyLimitTrade) revert FlashLoan_DailyTradeAmountHasReached();
         _;
     }
 
     modifier IsDailyProfitReached() {
         User memory user_ = user[msg.sender];
-        if(user_.dailyProfit == user_.dailyProfitLimit) revert FlashLoan_DailyProfitAmountHasReached();
+        if(user_.dailyProfit > 0 && user_.dailyProfit == user_.dailyProfitLimit) revert FlashLoan_DailyProfitAmountHasReached();
         _;
     }
 
@@ -241,7 +255,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      }
 
 
-     function uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) external IsValidAddress NotBlacklisted returns(uint256) {
+     function uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) external IsValidAddress NotBlacklisted returns(uint256, address) {
         // transfer the tokenIn amount to this contract
         IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         // then this contract approved uniswap router to pull the tokenIn amountIn
@@ -255,16 +269,16 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 recipient: address(this),
                 // deadline: block.timestamp,
                 amountIn: amountIn,
-                amountOutMinimum: 0,
+                amountOutMinimum: 1,
                 sqrtPriceLimitX96: 0
             });
 
-        uint256 amountOut = UNISWAP_ROUTERV3.exactInputSingle(params);
-        return amountOut;
+        uint256 amountTokenOut = UNISWAP_ROUTERV3.exactInputSingle(params);
+        return (amountTokenOut, tokenOut);
 
     }
 
-    function sushiswap(address tokenIn, address tokenOut, uint256 amountIn) external IsValidAddress NotBlacklisted returns(uint256[] memory) {
+    function sushiswap(address tokenIn, address tokenOut, uint256 amountIn) external IsValidAddress NotBlacklisted returns(uint256, address) {
 
         IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amountIn);
@@ -278,7 +292,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 address(this),
                 block.timestamp
             );
-        return amounts;
+        return (amounts[1], tokenOut);
         
     }
 
@@ -312,6 +326,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     ) external override returns (bool) {
 
         // perform an arbitrage here..
+        (uint256 amountTokenIn, address tokenIn) = uniswapV3(asset);
+        (uint256 amountTokenOut, address tokenOut) = sushiswap();
 
          uint256 amountOwed = amount + premium; // repay amount we borrow + fee ( premium )
          IERC20(asset).approve(address(POOL), amountOwed); // give a permission to an aave lending pool to take back the loaned fund 
@@ -319,24 +335,35 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     }
 
 
-    function requestLoan(address asset_, uint256 amount_) external IsValidAddress NotBlacklisted IsDailyTradeReached IsDailyProfitReached {
+    function requestLoan(address assetToBorrow, uint256 amountToBorrow_, address targetTokenOut) external IsValidAddress NotBlacklisted IsDailyTradeReached IsDailyProfitReached {
         address receiverAddress = address(this); // receiver will be this contract
         address asset = asset_; // we can borrow more than one assets
         uint256 amount = amount_;
         bytes memory params = ""; // any bytes data to pass
         uint16 refCode = 0;
 
+        User memory user_ = user[msg.sender];
+        UserTrade memory userTrade = s_userTrade[msg.sender];
+        address[] memory tradePair = new address()[2];
+        tradePair[0] = assetToBorrow;
+        tradePair[1] = targetTokenOut;
+
         //  flashloan simple function can only borrow one asset
         // while flashloan function can borrow more than one asset
-        if(asset_ != address(0) && amount_ > 0) {
+        if(assetToBorrow != address(0) && amountToBorrow_ > 0) {
             POOL.flashLoanSimple(
                 receiverAddress,
-                asset,
-                amount,
+                assetToBorrow,
+                amountToBorrow_,
                 params,
                 refCode
             );
+           
+           user_.totalBorrowed += assetToBorrow;
            borrowedAmountInTotal += amount_;
+           userTrade.userAddress = msg.sender;
+           userTrade.pair = tradePair;
+           userTrade.amountTokenIn = assetToBorrow;
            return;
         }
 

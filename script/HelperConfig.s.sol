@@ -39,10 +39,10 @@ contract HelperConfig {
     function sepolia() public returns(Params memory) {
         // polygon mumbai 0x4CeDCB57Af02293231BAA9D39354D6BFDFD251e0
         Params memory params = Params({
-            USDT: 0xAF0F6e8b0Dc5c913bbF4d14c22B4E78Dd14310B6,
+            USDT: 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0,
             WETH: 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9,
             POOL_ADDRESSES: 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A,
-            USER: 0x34699bE6B2a22E79209b8e9f9517C5e18db7eB89
+            USER: 0x3D002404deee63697fBEf95657DcE57335BF561D
         });
 
         return params;
@@ -54,7 +54,7 @@ contract HelperConfig {
             USDT: 0xdAC17F958D2ee523a2206206994597C13D831ec7,
             WETH: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             POOL_ADDRESSES: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e,
-            USER: 0x1681195C176239ac5E72d9aeBaCf5b2492E0C4ee
+            USER: 0x70213959A644BaA94840bbfb4129550bceCEB3c2
         });
 
         return params;

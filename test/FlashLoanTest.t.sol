@@ -148,6 +148,7 @@ contract FlashLoanTest is Test {
    function test_tradeOnUniswap() public {
         uint256 testAmt = 10;
         vm.startPrank(USER);
+        console.log(USER);
         IERC20(USDT).approve(address(flashloan), testAmt);
         uint256 tradedAmount = flashloan.uniswapV3(USDT, WETH, testAmt);
         vm.stopPrank();
