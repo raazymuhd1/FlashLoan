@@ -23,5 +23,11 @@ interface IV2SwapRouter {
 
     function exactInputSingle(SushiswapParams calldata params) external payable returns (uint256 amountOut);
 
-
+    function swapExactTokensForTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
 }

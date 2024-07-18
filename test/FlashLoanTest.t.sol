@@ -4,6 +4,7 @@ import { DeployFlashLoan } from "../script/DeployFlashLoan.s.sol";
 import { Test, console } from "forge-std/Test.sol";
 import { FlashLoan } from "../src/FlashLoan.sol";
 import { ERC20Mock } from "../src/mocks/MockERC.sol";
+import { HelperConfig } from "../script/HelperConfig.s.sol";
 import { IERC20 } from "../src/mocks/ERC20Test.sol";
 // import { IERC20 } from "@aave-coreV3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
 import {MockPoolAddressesProvider} from "../src/mocks/MockPoolAddrProvider.sol";
@@ -12,23 +13,28 @@ contract FlashLoanTest is Test {
     DeployFlashLoan deployer;
     FlashLoan flashloan;
     ERC20Mock mockERC20;
+    HelperConfig helper;
 
-    // deployed uniswap router V2 0x847E6d048C6779872D13C81aF653D840d5C7575f
-    address WETH_SEPOL = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
-    // address USDT_SEPOL = 0xAF0F6e8b0Dc5c913bbF4d14c22B4E78Dd14310B6; // usdt sepolia aave
-    address USDT_SEPOL = 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0; // usdt sepolia
-    address public USER = 0x34699bE6B2a22E79209b8e9f9517C5e18db7eB89;
     // address public USER = makeAddr("USER");
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     uint256 public PRECISION = 1e6;
     uint256 public TEST_BUY_AMT = 1000 * PRECISION;
+    address USDT; 
+    address WETH;
+    address POOL_ADDRESSES;
+    address USER;
 
     function setUp() public {
+         helper = new HelperConfig();
+        ( USDT, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
+
         deployer = new DeployFlashLoan();
-        (flashloan, mockERC20) = deployer.run(USER, payable(USER));
+        (flashloan, mockERC20) = deployer.run(USER, payable(USER), USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
+        // vm.prank(USER);
+        // IERC20(usdt).transfer(address(this), 20 * PRECISION);
     }
 
     modifier Blacklisted() {
@@ -140,30 +146,41 @@ contract FlashLoanTest is Test {
    }
 
    function test_tradeOnUniswap() public {
-      uint256 testAmt = 10;
-      vm.startPrank(USER);
-      IERC20(USDT_SEPOL).approve(address(flashloan), testAmt);
-     if(testAmt != type(uint256).max) {
-        uint256 tradedAmount = flashloan.uniswapV3(USDT_SEPOL, WETH_SEPOL, testAmt);
+        uint256 testAmt = 10;
+        vm.startPrank(USER);
+        IERC20(USDT).approve(address(flashloan), testAmt);
+        uint256 tradedAmount = flashloan.uniswapV3(USDT, WETH, testAmt);
+        vm.stopPrank();
+        // uint256 tradedAmount = flashloan.uniswapV3(USDT, WETH, testAmt);
         console.log(tradedAmount);
-     }
-     vm.stopPrank();
    }
 
    function test_tradeOnSushiswap() public {
-      uint256 testAmt = 10;
+      uint256 amountIn = 10;
       vm.startPrank(USER);
-      IERC20(USDT_SEPOL).approve(address(flashloan), testAmt);
-     if(testAmt != type(uint256).max) {
-        uint256[] memory tradedAmount = flashloan.sushiswap(USDT_SEPOL, WETH_SEPOL, testAmt);
-     }
-     vm.stopPrank();
+      IERC20(USDT).approve(address(flashloan), amountIn);
+      uint256[] memory tradedAmounts = flashloan.sushiswap(USDT, WETH, amountIn);
+      vm.stopPrank();
+
+        // amounts at [0] is tokenIn
+      console.log(tradedAmounts[0]);
+   }
+
+   function test_tradeOnQuickswap() public {
+      uint256 amountIn = 10;
+      vm.startPrank(USER);
+      IERC20(USDT).approve(address(flashloan), amountIn);
+      uint256[] memory tradedAmounts = flashloan.quickSwap(USDT, WETH, amountIn);
+      vm.stopPrank();
+
+        // amounts at [0] is tokenIn
+      console.log(tradedAmounts[0]);
    }
 
    function test_borrowAsset() public {
       uint256 testAmt = 10;
       vm.startPrank(USER);
-      flashloan.requestLoan(USDT_SEPOL, testAmt);
+      flashloan.requestLoan(USDT, testAmt);
       console.log("borrowed");
       vm.stopPrank();
    }
