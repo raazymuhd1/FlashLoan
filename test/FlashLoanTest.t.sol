@@ -145,43 +145,44 @@ contract FlashLoanTest is Test {
       console.log(success);
    }
 
-   function test_tradeOnUniswap() public {
-        uint256 testAmt = 10;
-        vm.startPrank(USER);
-        console.log(USER);
-        IERC20(USDT).approve(address(flashloan), testAmt);
-        uint256 tradedAmount = flashloan.uniswapV3(USDT, WETH, testAmt);
-        vm.stopPrank();
-        // uint256 tradedAmount = flashloan.uniswapV3(USDT, WETH, testAmt);
-        console.log(tradedAmount);
-   }
+//    function test_tradeOnUniswap() public {
+//         uint256 testAmt = 10;
+//         vm.startPrank(USER);
+//         console.log(USER);
+//         IERC20(USDT).approve(address(flashloan), testAmt);
+//         (uint256 tradedAmount, ) = flashloan.uniswapV3(USDT, WETH, testAmt);
+//         vm.stopPrank();
+//         // uint256 tradedAmount = flashloan.uniswapV3(USDT, WETH, testAmt);
+//         console.log(tradedAmount);
+//    }
 
-   function test_tradeOnSushiswap() public {
-      uint256 amountIn = 10;
-      vm.startPrank(USER);
-      IERC20(USDT).approve(address(flashloan), amountIn);
-      uint256[] memory tradedAmounts = flashloan.sushiswap(USDT, WETH, amountIn);
-      vm.stopPrank();
+//    function test_tradeOnSushiswap() public {
+//       uint256 amountIn = 10;
+//       vm.startPrank(USER);
+//       IERC20(USDT).approve(address(flashloan), amountIn);
+//       (uint256 tradedAmount, ) = flashloan.sushiswap(USDT, WETH, amountIn);
+//       vm.stopPrank();
 
-        // amounts at [0] is tokenIn
-      console.log(tradedAmounts[0]);
-   }
+//         // amounts at [0] is tokenIn
+//       console.log(tradedAmount);
+//    }
 
-   function test_tradeOnQuickswap() public {
-      uint256 amountIn = 10;
-      vm.startPrank(USER);
-      IERC20(USDT).approve(address(flashloan), amountIn);
-      uint256[] memory tradedAmounts = flashloan.quickSwap(USDT, WETH, amountIn);
-      vm.stopPrank();
+//    function test_tradeOnQuickswap() public {
+//       uint256 amountIn = 10;
+//       vm.startPrank(USER);
+//       IERC20(USDT).approve(address(flashloan), amountIn);
+//       uint256[] memory tradedAmounts = flashloan.quickSwap(USDT, WETH, amountIn);
+//       vm.stopPrank();
 
-        // amounts at [0] is tokenIn
-      console.log(tradedAmounts[0]);
-   }
+//         // amounts at [0] is tokenIn
+//       console.log(tradedAmounts[0]);
+//    }
 
    function test_borrowAsset() public {
       uint256 testAmt = 10;
       vm.startPrank(USER);
-      flashloan.requestLoan(USDT, testAmt);
+    //   bytes memory params = abi.encode(USER);
+      flashloan.requestLoan(USDT, testAmt, WETH);
       console.log("borrowed");
       vm.stopPrank();
    }
@@ -202,6 +203,7 @@ contract FlashLoanTest is Test {
 
       assert(packages[0] == 500);
    }
+
 
 }
  

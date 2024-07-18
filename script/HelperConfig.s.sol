@@ -14,13 +14,14 @@ contract HelperConfig {
 
 
     constructor() {
-       
         if(block.chainid == 1) {
            networkConfig =  mainnet();
         } else if(block.chainid == 137) {
             networkConfig = polygon();
-        } else {
+        } else if(block.chainid == 11155111) {
             networkConfig = sepolia();
+        } else if(block.chainid == 31337) {
+            networkConfig = anvil();
         }
     }
 
@@ -48,6 +49,16 @@ contract HelperConfig {
         return params;
     }
 
+    function anvil() public returns(Params memory) {
+        Params memory params = Params({
+            USDT: 0xdAC17F958D2ee523a2206206994597C13D831ec7,
+            WETH: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+            POOL_ADDRESSES: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e,
+            USER: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+        });
+
+        return params;
+    }
 
     function mainnet() public returns(Params memory) {
         Params memory params = Params({
