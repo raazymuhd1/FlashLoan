@@ -191,8 +191,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
 
      function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal returns(uint32) {
-        
-        user[msg.sender] = User(msg.sender, 0, 0, 0, 0, Packages.FiveHundreds, 50, 20, true, true, true); 
         uint32 typesOfPackage;
         uint256 dailyProfit = 0;
         uint256 dailyTrade = 0;
@@ -242,23 +240,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         return typesOfPackage;
      }
 
-    //  function _packageChecking(string memory packageTypes_) internal returns(Packages package) {
-    //     string memory fiveHundredPckg = keccak256(abi.encodePacked(packageTypes_)) == keccak256(abi.encodePacked("fivehundred"));
-    //     string memory thousandPckg = keccak256(abi.encodePacked(packageTypes_)) == keccak256(abi.encodePacked("thousand"));
-    //     string memory threeThousandPckg = keccak256(abi.encodePacked(packageTypes_)) == keccak256(abi.encodePacked("threethousand"));
-    //     string memory fiveThousandPckg = keccak256(abi.encodePacked(packageTypes_)) == keccak256(abi.encodePacked("fivethousand"));
-    //     string memory tenThousandPckg = keccak256(abi.encodePacked(packageTypes_)) == keccak256(abi.encodePacked("tenthousand"));
-
-    //     if(fiveHundredPckg) {
-    //         return Packages.FiveHundreds;
-    //     } else if(thousandPckg) {
-    //         return Packages.Thousands;
-    //     } else if(threeThousandPckg) {
-    //         return Packages.ThreeThousands;
-    //     } else if(tenThousandPckg) {
-    //         return Packages.TenThousands;
-    //     }
-    //  }
 
      function uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) external IsValidAddress NotBlacklisted returns(uint256) {
         // transfer the tokenIn amount to this contract
