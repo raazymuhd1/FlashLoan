@@ -33,8 +33,8 @@ contract FlashLoanTest is Test {
         (flashloan, mockERC20) = deployer.run(USER, payable(USER), USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
-        // vm.prank(USER);
-        // IERC20(usdt).transfer(address(this), 20 * PRECISION);
+        vm.prank(USER);
+        IERC20(USDT).transfer(address(flashloan), 20 * PRECISION);
     }
 
     modifier Blacklisted() {

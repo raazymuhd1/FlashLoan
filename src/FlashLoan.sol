@@ -258,7 +258,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
      function uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256, address) {
         // transfer the tokenIn amount to this contract
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         // then this contract approved uniswap router to pull the tokenIn amountIn
         IERC20(tokenIn).approve(address(UNISWAP_ROUTERV3), amountIn);
 
@@ -281,7 +281,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     function sushiswap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256, address) {
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amountIn);
 
         address[] memory path = new address[](2);
@@ -326,18 +326,22 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         address initiator, // initiator will be this contract
         bytes calldata params // optional param
     ) external override returns (bool) {
-        //   (address borrower) = abi.decode(params, (address));
-        //   UserTrade memory userTrade = s_userTrade[borrower];
+          (address borrower) = abi.decode(params, (address));
+          UserTrade memory userTrade = s_userTrade[borrower];
+          address USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+          address WETH = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
         //   if(userTrade.userAddress == address(0)) revert FlashLoan_UserTradeAddressIsNotMatch();
 
-            // perform an arbitrage here..
-            // (uint256 amountTokenIn, address tokenIn) = uniswapV3(userTrade.pair[0], userTrade.pair[1], amount);
-            // (uint256 amountTokenOut, address tokenOut) = sushiswap(tokenIn, userTrade.pair[0], amountTokenIn);
+            if(borrower != address(0)) {
+                // perform an arbitrage here..
+                (uint256 amountTokenIn, address tokenIn) = uniswapV3(USDT, WETH, amount);
+                (uint256 amountTokenOut, address tokenOut) = sushiswap(tokenIn, USDT, amountTokenIn);
 
 
-            uint256 amountOwed = amount + premium; // repay amount we borrow + fee ( premium )
-            IERC20(asset).approve(address(POOL), amountOwed); // give a permission to an aave lending pool to take back the loaned fund 
-            return true;
+                uint256 amountOwed = amount + premium; // repay amount we borrow + fee ( premium )
+                IERC20(asset).approve(address(POOL), amountOwed); // give a permission to an aave lending pool to take back the loaned fund 
+                return true;
+            }
 
     }
 
@@ -346,8 +350,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         address receiverAddress = address(this); // receiver will be this contract
         address asset = assetToBorrow; // we can borrow more than one assets
         uint256 amount = amountToBorrow_;
-        bytes memory params= '';
-         // this is needed to identified the borrower address
+        bytes memory params= abi.encode(msg.sender); // this is needed to identified the borrower address
         uint16 refCode = 0;
 
         address[] memory tradePair = new address[](2);
@@ -366,13 +369,15 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 refCode
             );
            
-           user[msg.sender].totalBorrowed += amount;
-           borrowedAmountInTotal += amount;
+            unchecked {
+                user[msg.sender].totalBorrowed += amount;
+                borrowedAmountInTotal += amount;
+           }
 
            s_userTrade[msg.sender] = UserTrade({
                 userAddress: msg.sender,
                 pair: tradePair,
-                amountTokenIn: amount
+                amountTokenIn: amount * PRECISION
            });
     }
 
