@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
+import { ERC20Mock } from "../src/mocks/MockERC.sol";
+import { MockWETH } from "../src/mocks/MockWETH.sol";
+import { MockPoolAddressesProvider } from "../src/mocks/MockPoolAddrProvider.sol";
+
 contract HelperConfig {
 
     struct Params {
@@ -50,10 +54,14 @@ contract HelperConfig {
     }
 
     function anvil() public returns(Params memory) {
+        ERC20Mock mockErc20 = new ERC20Mock();
+        MockWETH mockWeth = new MockWETH();
+        MockPoolAddressesProvider mockPoolAddressProvider = new MockPoolAddressesProvider(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+
         Params memory params = Params({
-            USDT: 0xdAC17F958D2ee523a2206206994597C13D831ec7,
-            WETH: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            POOL_ADDRESSES: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e,
+            USDT: address(mockErc20),
+            WETH: address(mockWeth),
+            POOL_ADDRESSES: address(mockPoolAddressProvider),
             USER: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
         });
 

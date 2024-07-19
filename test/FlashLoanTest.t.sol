@@ -30,10 +30,11 @@ contract FlashLoanTest is Test {
         ( USDT, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
 
         deployer = new DeployFlashLoan();
-        (flashloan, mockERC20) = deployer.run(USER, payable(USER), USDT, POOL_ADDRESSES);
+        flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
         vm.prank(USER);
+        // // deposit some initial funds into flashloan contract
         IERC20(USDT).transfer(address(flashloan), 20 * PRECISION);
     }
 
@@ -48,8 +49,7 @@ contract FlashLoanTest is Test {
         uint32 pckgType = 1000;
 
         vm.startPrank(caller);
-        mockERC20.mintToken();
-        mockERC20.approve(address(flashloan), TEST_BUY_AMT);
+        IERC20(USDT).approve(address(flashloan), TEST_BUY_AMT);
         FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
         vm.stopPrank();
         _;
@@ -178,12 +178,18 @@ contract FlashLoanTest is Test {
 //       console.log(tradedAmounts[0]);
 //    }
 
-   function test_borrowAsset() public {
+   function test_borrowAsset() public PurchasingPackage(USER) {
       uint256 testAmt = 10;
       vm.startPrank(USER);
-    //   bytes memory params = abi.encode(USER);
-      flashloan.requestLoan(USDT, testAmt, WETH);
-      console.log("borrowed");
+      flashloan.requestLoan(USDT, testAmt, WETH, USER);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(USER);
+      FlashLoan.User memory user = flashloan.getUserDetails(USER);
+
+    //   console.log("user trade");
+      console.log(userTrade.userAddress);
+      console.log(user.dailyProfitAmount);
+      console.log(user.dailyTradeAmount);
+      console.log(user.totalTrades);
       vm.stopPrank();
    }
 
