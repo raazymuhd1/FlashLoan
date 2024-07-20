@@ -35,9 +35,9 @@ contract FlashLoanTest is Test {
         flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
-        // vm.prank(USER);
-        // // // deposit some initial funds into flashloan contract
-        // UsdtToken.transfer(address(flashloan), 20 * PRECISION);
+        vm.prank(USER);
+        // // deposit some initial funds into flashloan contract
+        UsdtToken.transfer(address(flashloan), 2000 * PRECISION);
     }
 
     modifier Blacklisted() {
@@ -50,10 +50,13 @@ contract FlashLoanTest is Test {
     modifier PurchasingPackage(address caller) {
         uint32 pckgType = 1000;
 
+        vm.prank(USER);
+        UsdtToken.transfer(caller, 3000 * PRECISION);
+
         vm.startPrank(caller);
-        UsdtToken.mintToken();
-        UsdtToken.approve(address(flashloan), TEST_BUY_AMT);
-        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
+        // UsdtToken.mintToken();
+        UsdtToken.approve(address(flashloan), TEST_BUY_AMT * PRECISION);
+        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
         vm.stopPrank();
         _;
     }
@@ -69,11 +72,13 @@ contract FlashLoanTest is Test {
         console.log(userBalance);
 
         FlashLoan.User memory userBfore = flashloan.getUserDetails(USER);
+        console.log("user before registered");
         console.log(userBfore.userAddress);
 
         if(userBalance > 0) {
             UsdtToken.approve(address(flashloan), TEST_BUY_AMT * PRECISION);
-            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
+            console.log("user after registered");
             console.log(userAfter.userAddress);
             uint contractBalance = UsdtToken.balanceOf(address(flashloan));
             console.log("contract balance:");
@@ -215,7 +220,7 @@ contract FlashLoanTest is Test {
       vm.startPrank(USER);
       UsdtToken.mintToken();
       UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
-      bool success = flashloan.withdrawFunds(100);
+      bool success = flashloan.withdrawFunds(100 * PRECISION);
 
       console.log(success);
    }
@@ -276,20 +281,84 @@ contract FlashLoanTest is Test {
 //         // amounts at [0] is tokenIn
 //       console.log(tradedAmounts[0]);
 //    }
-
    function test_borrowAsset() public PurchasingPackage(USER) {
-      uint256 testAmt = 10;
+      uint256 testAmt = 40 * PRECISION;
       vm.startPrank(USER);
       flashloan.requestLoan(USDT, testAmt, WETH, USER);
       FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(USER);
       FlashLoan.User memory user = flashloan.getUserDetails(USER);
-
-    //   console.log("user trade");
+    //   console.log("user trade"); 39_799_479
       console.log(userTrade.userAddress);
       console.log(user.dailyProfitAmount);
       console.log(user.dailyTradeAmount);
       console.log(user.totalTrades);
       vm.stopPrank();
+   }
+
+   function test_borrowAssetByNotRegisteredUser() public {
+      uint256 testAmt = 40 * PRECISION;
+      vm.startPrank(ANOTHER_USER);
+      flashloan.requestLoan(USDT, testAmt, WETH, ANOTHER_USER);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(ANOTHER_USER);
+      FlashLoan.User memory user = flashloan.getUserDetails(ANOTHER_USER);
+    //   console.log("user trade"); 39_799_479
+      console.log(userTrade.userAddress);
+      console.log(user.dailyProfitAmount);
+      console.log(user.dailyTradeAmount);
+      console.log(user.totalTrades);
+      vm.stopPrank();
+   }
+
+   function test_borrowAssetByBlacklistedAccount() public PurchasingPackage(BLACKLISTED_USER) {
+      uint256 testAmt = 40 * PRECISION;
+      vm.prank(USER);
+      bool isBlacklisted = flashloan.blacklistAccounts(BLACKLISTED_USER);
+      vm.startPrank(BLACKLISTED_USER);
+      flashloan.requestLoan(USDT, testAmt, WETH, BLACKLISTED_USER);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(BLACKLISTED_USER);
+      FlashLoan.User memory user = flashloan.getUserDetails(BLACKLISTED_USER);
+    //   console.log("user trade"); 39_799_479
+      console.log(userTrade.userAddress);
+      console.log(user.dailyProfitAmount);
+      console.log(user.dailyTradeAmount);
+      console.log(user.totalTrades);
+      vm.stopPrank();
+   }
+
+
+   function test_supplyingInitialFunds() public {
+       uint256 amountToSupply = 100 * PRECISION;
+
+       vm.startPrank(USER);
+       UsdtToken.mintToken();
+       UsdtToken.approve(address(flashloan), amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply);
+       uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
+       console.log(funded);
+       console.log(contractFunds);
+   }
+   function test_supplyingInitialFundsBelowMinimumAmount() public {
+       uint256 amountToSupply = 10 * PRECISION;
+
+       vm.startPrank(USER);
+       UsdtToken.mintToken();
+       UsdtToken.approve(address(flashloan), amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply);
+       uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
+       console.log(funded);
+       console.log(contractFunds);
+   }
+
+   function test_supplyingInitialFundsByNonOwner() public {
+       uint256 amountToSupply = 100 * PRECISION;
+
+       vm.startPrank(ANOTHER_USER);
+       UsdtToken.mintToken();
+       UsdtToken.approve(address(flashloan), amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply);
+       uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
+       console.log(funded);
+       console.log(contractFunds);
    }
 
    function test_getUserDetails() public PurchasingPackage(ANOTHER_USER) {
@@ -309,6 +378,38 @@ contract FlashLoanTest is Test {
       assert(packages[0] == 500);
    }
 
+   function test_getTotalAmountBeingBorrowed() public {
+      vm.startPrank(USER);
+      uint256 borrowedAmountInTotal = flashloan.getTotalBorrowed();
+      console.log(borrowedAmountInTotal);
+      vm.stopPrank();
+   }
+
+   function test_getTotalTradesNumber() public {
+      vm.startPrank(USER);
+      uint256 tradesInTotal = flashloan.getTotalTradesCount();
+      console.log(tradesInTotal);
+      vm.stopPrank();
+   }
+
+   function test_getTotalFundsAvailable() public {
+      uint256 amountToSupply = 100 * PRECISION;
+
+      vm.startPrank(USER);
+      UsdtToken.mintToken();
+      UsdtToken.approve(address(flashloan), amountToSupply);
+      bool funded = flashloan.supplyInitialFunds(amountToSupply);
+      uint256 totalFundsAvail = flashloan.getTotalFunds();
+      console.log(totalFundsAvail);
+      vm.stopPrank();
+   }
+
+   function test_getOwner() public {
+      vm.startPrank(USER);
+      address owner = flashloan.getOwner();
+      console.log(owner);
+      vm.stopPrank();
+   }
 
 }
  
