@@ -127,6 +127,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     event Purchasing_Successfull(address user, uint32 packageType);
     event Withdrawal_Successfull(address user, uint256 wdAmount);
     event FundsHasBeenSupplied(address supplier, uint256 supplyAmount);
+    event UserDailyProfitAndTradeReset(address owner);
 
     // -------------------------------------- MODIFIERS -------------------------------------------------------
 
@@ -202,9 +203,16 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         return false;
     } 
 
-    // function resetUserDataDaily(address account) external OnlyOwner IsValidAddress returns(User memory) {
-    //     user[]
-    // }
+    function resetUserDataDaily(address account) external OnlyOwner IsValidAddress NotBlacklisted returns(User memory) {
+        User memory currentUser = user[account];
+        if(currentUser.isRegistered == true && currentUser.dailyProfitAmount > 0 && currentUser.dailyTradeAmount > 0) {
+            user[account].dailyProfitAmount = 0;
+            user[account].dailyTradeAmount = 0;
+            emit UserDailyProfitAndTradeReset(msg.sender);
+            return currentUser;
+        }
+        return currentUser;
+    }
 
     /**
         @dev account restrictions from trade, purchase package, and withdraw
