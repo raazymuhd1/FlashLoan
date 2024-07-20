@@ -3,3 +3,4 @@
   - setup which dexes to buy and sell 
   - store profit on contract
   - Aave pool will called executeOperation function for arbitrage trade.
+  - 

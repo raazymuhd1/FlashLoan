@@ -40,6 +40,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // ------------------------------- ERRORS -----------------------------------------
     error FlashLoan_ZeroAddress();
     error FlashLoan_NotEnoughBalance();
+    error FlashLoan_NotEnoughPayment();
     error FlashLoan_AcountBlacklisted();
     error FlashLoan_NoAssetBeingPassed();
     error FLashLoan_UserNotRegistered();
@@ -52,14 +53,16 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     error FlashLoan_UserTradeAddressIsNotMatch();
     error FlashLoan_BorrowerAddressIsZero(address borrower);
     error FlashLoan_NotEnoughFeeToCoverTxs();
+    error FlashLoan_PackageNotAvailable(string reason);
+    error FlashLoan_WithdrawAmountCannotBeMoreThanBalance(string reason);
 
     // --------------------------- STATE VARIABLES --------------------------------------
     uint256 private constant PRECISION = 1e6; // six decimal places for USDT
-    uint256 private constant MINIMUM_PURCHASING = 500;
-    uint256 private constant THOUSAND = 1000;
-    uint256 private constant THREE_THOUSAND = 3000;
-    uint256 private constant FIVE_THOUSAND = 5000;
-    uint256 private constant TEN_THOUSAND = 10000;
+    uint256 private constant MINIMUM_PURCHASING = 500 * PRECISION;
+    uint256 private constant THOUSAND = 1000 * PRECISION;
+    uint256 private constant THREE_THOUSAND = 3000 * PRECISION;
+    uint256 private constant FIVE_THOUSAND = 5000 * PRECISION;
+    uint256 private constant TEN_THOUSAND = 10000 * PRECISION;
     uint256 private constant PROFIT_WD_FEE = 0.001 ether;
     address payable private immutable i_owner;
     IERC20 private immutable i_paymentToken; // payment for purchasing packages
@@ -129,13 +132,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     modifier IsDailyTradeReached() {
         User memory user_ = user[msg.sender];
-        if(user_.dailyTradeAmount > 0 && user_.dailyTradeAmount == user_.dailyLimitTradeAmount) revert FlashLoan_DailyTradeAmountHasReached();
+        if(user_.dailyTradeAmount > 0 && user_.dailyTradeAmount >= user_.dailyLimitTradeAmount) revert FlashLoan_DailyTradeAmountHasReached();
         _;
     }
 
     modifier IsDailyProfitReached() {
         User memory user_ = user[msg.sender];
-        if(user_.dailyProfitAmount > 0 && user_.dailyProfitAmount == user_.dailyProfitLimitAmount) revert FlashLoan_DailyProfitAmountHasReached();
+        if(user_.dailyProfitAmount > 0 && user_.dailyProfitAmount >= user_.dailyProfitLimitAmount) revert FlashLoan_DailyProfitAmountHasReached();
         _;
     }
 
@@ -169,6 +172,19 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         withdrew = true; 
     }
 
+     function withdrawFunds(uint256 amountToWd) external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
+        uint256 availableFunds = i_paymentToken.balanceOf(address(this));
+
+        if(amountToWd * PRECISION > availableFunds) revert FlashLoan_WithdrawAmountCannotBeMoreThanBalance("Withdraw amount cannot be more than available balance on this contract");
+
+        if(availableFunds > 0) {
+            i_paymentToken.transfer(i_owner, amountToWd * PRECISION );
+            return true;
+        }
+
+        return false;
+    } 
+
     /**
         @dev account restrictions from trade, purchase package, and withdraw
         @param account - account to restricted
@@ -177,6 +193,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      */
     function restrictAccountActions(address account, bool tradeAllowed, bool withdrawAllowed) external OnlyOwner IsValidAddress returns(bool) {
         if(account != user[account].userAddress) revert FLashLoan_UserNotRegistered();
+        if(user[account].isTradeAllowed == false || user[account].isWithdrawAllowed == false) revert("user has been restricted");
         user[account].isTradeAllowed = tradeAllowed;
         user[account].isWithdrawAllowed = withdrawAllowed;
         return true;
@@ -187,6 +204,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @param accountToBlacklist_ - account target to blacklist
      */
     function blacklistAccounts(address accountToBlacklist_) external OnlyOwner IsValidAddress returns(bool) {
+        if(accountBlacklisted[accountToBlacklist_] == true) revert("Account has been blaclisted");
         accountBlacklisted[accountToBlacklist_] = true;
         return accountBlacklisted[accountToBlacklist_];
     }
@@ -203,11 +221,12 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      */
      function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
         uint256 userBalance = i_paymentToken.balanceOf(msg.sender);
-        if(payAmount_ < MINIMUM_PURCHASING * PRECISION || userBalance == 0 || userBalance <= payAmount_) revert FlashLoan_NotEnoughBalance();
+        if(payAmount_ < MINIMUM_PURCHASING) revert FlashLoan_NotEnoughPayment();
+        if(userBalance == 0 || userBalance <= payAmount_) revert FlashLoan_NotEnoughBalance();
         if(user[msg.sender].isRegistered == true) revert FLashLoan_UserHasBeenRegistered();
         
-        uint32 typesOfPckg = _altPackageChecking(packageTypes_, payAmount_);
         i_paymentToken.transferFrom(msg.sender, address(this), payAmount_);
+        uint32 typesOfPckg = _altPackageChecking(packageTypes_, payAmount_);
         emit Purchasing_Successfull(msg.sender, typesOfPckg);
         return user[msg.sender];
      }
@@ -220,41 +239,41 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         uint256 totalBorrowedAmount = 0;
         uint256 totalProfitAmount = 0;
         uint256 totalTrades = 0;
-        Packages packageType;
-        uint256 dailyLimitTradeAmount;
-        uint256 dailyProfitLimitAmount;
+        Packages packageType = Packages.FiveHundreds;
+        uint256 dailyLimitTradeAmount = 20;
+        uint256 dailyProfitLimitAmount = 50;
         bool isRegistered = true;
         bool isTradeAllowed = true;
         bool isWithdrawAllowed = true;
 
-        if(packageTypes_ == packagesLists[0] && payAmount_ >=  MINIMUM_PURCHASING * PRECISION) {
+        if(packageTypes_ == packagesLists[0] && payAmount_ >=  MINIMUM_PURCHASING) {
             packageType = Packages.FiveHundreds;
-            dailyProfitLimitAmount = 20 * PRECISION;
-            dailyLimitTradeAmount = 50 * PRECISION;
+            dailyProfitLimitAmount = 20;
+            dailyLimitTradeAmount = 50;
             typesOfPackage = packagesLists[0];
 
-        } else if(packageTypes_ == packagesLists[1] && payAmount_ >= THOUSAND * PRECISION) {
+        } else if(packageTypes_ == packagesLists[1] && payAmount_ >= THOUSAND) {
             packageType = Packages.Thousands;
-            dailyProfitLimitAmount = 40 * PRECISION;
-            dailyLimitTradeAmount = 100 * PRECISION;
+            dailyProfitLimitAmount = 40;
+            dailyLimitTradeAmount = 100;
             typesOfPackage = packagesLists[1];
         }
-         else if(packageTypes_ == packagesLists[2] && payAmount_ >= THREE_THOUSAND * PRECISION) {
+         else if(packageTypes_ == packagesLists[2] && payAmount_ >= THREE_THOUSAND) {
             packageType = Packages.ThreeThousands;
-            dailyProfitLimitAmount = 120 * PRECISION;
-            dailyLimitTradeAmount = 300 * PRECISION;
+            dailyProfitLimitAmount = 120;
+            dailyLimitTradeAmount = 300;
             typesOfPackage = packagesLists[2];
         }
-         else if(packageTypes_ == packagesLists[3] && payAmount_ >= FIVE_THOUSAND * PRECISION) {
+         else if(packageTypes_ == packagesLists[3] && payAmount_ >= FIVE_THOUSAND) {
             packageType = Packages.TenThousands;
-            dailyProfitLimitAmount = 200 * PRECISION;
-            dailyLimitTradeAmount = 500 * PRECISION;
+            dailyProfitLimitAmount = 200;
+            dailyLimitTradeAmount = 500;
             typesOfPackage = packagesLists[3];
         }
-         else if(packageTypes_ == packagesLists[3] && payAmount_ >= TEN_THOUSAND * PRECISION) {
+         else if(packageTypes_ == packagesLists[3] && payAmount_ >= TEN_THOUSAND) {
             packageType = Packages.FiveHundreds;
-            dailyProfitLimitAmount = 400 * PRECISION;
-            dailyLimitTradeAmount = 1000 * PRECISION;
+            dailyProfitLimitAmount = 400;
+            dailyLimitTradeAmount = 1000;
             typesOfPackage = packagesLists[4];
         }
 
@@ -262,7 +281,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         defaultPair[0] = address(0);
         defaultPair[1] = address(0);
         UserTrade memory userTrades = UserTrade(msg.sender, defaultPair, 0);
-        user[msg.sender] = User(msg.sender, dailyProfitAmount, dailyTradeAmount, totalBorrowedAmount, totalProfitAmount, totalTrades, packageType, dailyLimitTradeAmount, dailyProfitLimitAmount, isRegistered, isTradeAllowed, isWithdrawAllowed, userTrades); 
+        user[msg.sender] = User( 
+             msg.sender, dailyProfitAmount, dailyTradeAmount, totalBorrowedAmount, totalProfitAmount, totalTrades, packageType, dailyLimitTradeAmount * PRECISION, dailyProfitLimitAmount * PRECISION, isRegistered, isTradeAllowed, isWithdrawAllowed, userTrades); 
 
         return typesOfPackage;
      }
@@ -330,6 +350,32 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     }
 
 
+    function _updateUserData(uint256 amountTokenOut, uint256 amount, address borrower) internal {
+            uint256 profits;
+            uint256 borrowedOrTradeAmount;
+
+          unchecked {
+                    profits = amountTokenOut - amount; // this still needs tobe fixed
+                    borrowedOrTradeAmount = amount * PRECISION;
+
+                    borrowedAmountInTotal += borrowedOrTradeAmount;
+                    user[borrower].totalBorrowedAmount += borrowedOrTradeAmount;
+                    user[borrower].dailyTradeAmount += borrowedOrTradeAmount;
+                    user[borrower].totalTrades += 1;
+            }
+
+        unchecked {
+             if(profits != 0) {
+                    user[borrower].dailyProfitAmount += profits;
+                    user[borrower].totalProfitAmount += profits;
+              } else {
+                    user[borrower].dailyProfitAmount += 0;
+                    user[borrower].totalProfitAmount += 0;
+              }
+        }
+
+    }
+
     // this function wil be call by aave pool 
     function executeOperation(
         address asset, // asset we want to borrow
@@ -341,7 +387,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
           (address borrower) = abi.decode(params, (address));
           UserTrade memory userTrade = getUserCurrentTrade(borrower);
-          User memory user_ = user[borrower];
           uint256 amountOwed;
 
           address[] memory resetTradePair = new address[](2);
@@ -356,21 +401,9 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
                 unchecked {
                     amountOwed = amount + premium; // repay amount we borrow + fee ( premium )
-                    
-                    borrowedAmountInTotal += (amount * PRECISION);
-                    user_.totalBorrowedAmount += (amount * PRECISION);
-                    user_.dailyTradeAmount += (amount * PRECISION);
-                    user_.totalTrades += 1;
-
-                    if(amountTokenOut - (amount * PRECISION) != 0) {
-                            user_.dailyProfitAmount += amountTokenOut - (amount * PRECISION);
-                            user_.totalProfitAmount += amountTokenOut - (amount * PRECISION);
-                    } else {
-                        user_.dailyProfitAmount += 0;
-                        user_.totalProfitAmount += 0;
-                    }
                 }
 
+                _updateUserData(amountTokenOut, amount, borrower);
 
                 // reset user trade
                 userTrade.pair = resetTradePair;
@@ -399,7 +432,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         tradePair[0] = assetToBorrow;
         tradePair[1] = targetTokenOut;
 
-        if(contractBalancesOfUsdt <= amountToBorrow_ * PRECISION) revert FlashLoan_NotEnoughFeeToCoverTxs();
+        if(contractBalancesOfUsdt < amountToBorrow_ * PRECISION || contractBalancesOfUsdt == 0) revert FlashLoan_NotEnoughFeeToCoverTxs();
         if(assetToBorrow == address(0) && amountToBorrow_ == 0) revert FlashLoan_NoAssetBeingPassed();
 
            user[borrower].userTrade.userAddress = borrower;
@@ -443,15 +476,5 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     function getTotalFunds() public view returns(uint256 balance) {
         balance = i_paymentToken.balanceOf(address(this));
     }
-
-    function withdrawFunds() external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
-        uint256 availableFunds = i_paymentToken.balanceOf(address(this));
-        if(availableFunds > 0) {
-            i_paymentToken.transfer(i_owner, availableFunds);
-            return true;
-        }
-
-        return false;
-    } 
 
 }

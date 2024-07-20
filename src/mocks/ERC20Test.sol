@@ -22,6 +22,8 @@ interface IERC20 {
     function approve(address spender, uint256 value) external returns (bool);
 
     function transferFrom(address from, address to, uint256 value) external returns (bool);
+
+    function mintToken() external;
 }
 
 interface IERC20Metadata is IERC20 {
