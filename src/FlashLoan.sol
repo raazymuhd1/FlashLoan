@@ -32,7 +32,7 @@ Package.    Limit                    Profit
 
 import {FlashLoanSimpleReceiverBase} from "@aave-coreV3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 import {IPoolAddressesProvider} from "@aave-coreV3/contracts/interfaces/IPoolAddressesProvider.sol";
-import {IERC20} from "./mocks/ERC20Test.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
 import { IUniswapV3 } from "./interfaces/IUniswapV3.sol";
 import { IV2SwapRouter } from "./interfaces/IV2SwapRouter.sol";
 
@@ -56,10 +56,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     error FlashLoan_NotEnoughFeeToCoverTxs();
     error FlashLoan_PackageNotAvailable(string reason);
     error FlashLoan_WithdrawAmountCannotBeMoreThanBalance(string reason);
+    error FlashLoan_InvalidTokenAddress();
+    error FlashLoan_NotAllowedToWithdraw();
+    error FlashLoan_NotAllowedToTrade();
 
     // --------------------------- STATE VARIABLES --------------------------------------
     uint256 private constant PRECISION = 1e6; // six decimal places for USDT
-    uint256 private constant PRECISION_NON_USDT = 1e18; // six decimal places for USDT
+    uint256 private constant PRECISION_NON_USDT = 1e18; // 18 decimal places for others ERC20
     uint256 private constant MINIMUM_PURCHASING = 500 * PRECISION;
     uint256 private constant THOUSAND = 1000 * PRECISION;
     uint256 private constant THREE_THOUSAND = 3000 * PRECISION;
@@ -72,7 +75,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     address private immutable i_poolAddress;
     uint32[] private packagesLists = [500, 1000, 3000, 5000, 10000];
     uint256 private borrowedAmountInTotal = 0;
-    uint256 private tradeAcounts = 0;
+    uint256 private tradeCounts = 0;
 
     // DEXES ROUTER
     IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45); // POLYGON / ETH MAINNET
@@ -163,6 +166,16 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         _;
     }
 
+    modifier IsWithdrawAllowed() {
+        if(user[msg.sender].isWithdrawAllowed == false) revert FlashLoan_NotAllowedToWithdraw();
+        _;
+    }
+
+    modifier IsTradeAllowed() {
+        if(user[msg.sender].isTradeAllowed == false) revert FlashLoan_NotAllowedToTrade();
+        _;
+    }
+
     // --------------------------------------- EXTERNAL & INTERNAL FUNCTIONS ---------------------------------------------
     receive() external payable {} // in case we want this contract tobe able to receive ether
 
@@ -171,8 +184,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @param amountToWd - amount of their profit wanted to withdraw, only user that has been registered and has profit amount more than 0
         @return withdrew - return true if withdrawal went successfully
      */
-    function withdrawProfit(uint256 amountToWd) external payable IsValidAddress NotBlacklisted returns(bool withdrew) {
-        if(user[msg.sender].userAddress == address(0)) revert FLashLoan_UserNotRegistered();
+    function withdrawProfit(uint256 amountToWd) external payable IsValidAddress NotBlacklisted IsRegistered returns(bool withdrew) {
         if(amountToWd > user[msg.sender].totalProfitAmount) revert FlashLoan_CannotWdAboveProfit();
         if(user[msg.sender].totalProfitAmount <= 0) revert FlashLoan_ProfitStillZero(); 
         if(msg.value < PROFIT_WD_FEE) revert FlashLoan_WithdrawFeeNotEnough();
@@ -186,7 +198,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      /**
        @notice OnlyOwner can call this function
        @param amountToWd - amount of funds to wd
-       @return bool - return true if withdrawal went successfully
+       @return bool - return true if withdrawal went successfully (TESTED)
       */
      function withdrawFunds(uint256 amountToWd) external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
         uint256 availableFunds = i_paymentToken.balanceOf(address(this));
@@ -218,7 +230,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @dev account restrictions from trade, purchase package, and withdraw
         @param account - account to restricted
         @param  tradeAllowed - true if allowed / false if not allowed 
-        @param  withdrawAllowed - true if allowed / false if not allowed 
+        @param  withdrawAllowed - true if allowed / false if not allowed  (TESTED)
      */
     function restrictAccountActions(address account, bool tradeAllowed, bool withdrawAllowed) external OnlyOwner IsValidAddress returns(bool) {
         if(account != user[account].userAddress) revert FLashLoan_UserNotRegistered();
@@ -230,10 +242,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     /**
         @dev blacklist an account by owner only
-        @param accountToBlacklist_ - account target to blacklist
+        @param accountToBlacklist_ - account target to blacklist (TESTED)
      */
     function blacklistAccounts(address accountToBlacklist_) external OnlyOwner IsValidAddress returns(bool) {
-        if(accountBlacklisted[accountToBlacklist_] == true) revert("Account has been blaclisted");
+        if(checkBlacklistedAccount(accountToBlacklist_) == true) revert("Account has been blaclisted");
         accountBlacklisted[accountToBlacklist_] = true;
         return accountBlacklisted[accountToBlacklist_];
     }
@@ -242,7 +254,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @dev checking whether user has been blacklisted or not
         @param account - user registered address
      */
-    function checkBlacklistedAccount(address account) external view returns(bool) {
+    function checkBlacklistedAccount(address account) public view returns(bool) {
         return accountBlacklisted[account];
     }
 
@@ -250,7 +262,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     /**
     @dev buy package
     @param packageTypes_ - types of package
-    @param payAmount_ - amount of user needs to pay for the package
+    @param payAmount_ - amount of user needs to pay for the package (TESTED)
      */
      function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
         uint256 userBalance = i_paymentToken.balanceOf(msg.sender);
@@ -306,13 +318,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
             typesOfPackage = packagesLists[2];
         }
          else if(packageTypes_ == packagesLists[3] && payAmount_ >= FIVE_THOUSAND) {
-            packageType = Packages.TenThousands;
+            packageType = Packages.FiveThousands;
             dailyProfitLimitAmount = 200;
             dailyLimitTradeAmount = 500;
             typesOfPackage = packagesLists[3];
         }
-         else if(packageTypes_ == packagesLists[3] && payAmount_ >= TEN_THOUSAND) {
-            packageType = Packages.FiveHundreds;
+         else if(packageTypes_ == packagesLists[4] && payAmount_ >= TEN_THOUSAND) {
+            packageType = Packages.TenThousands;
             dailyProfitLimitAmount = 400;
             dailyLimitTradeAmount = 1000;
             typesOfPackage = packagesLists[4];
@@ -330,7 +342,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     /**
         @dev supplying an initial funds into this contract to cover borrow asset fee from AAVE
-        @param supplyAmount - an amount to supply
+        @param supplyAmount - an amount to supply (TESTED)
      */
     function supplyInitialFunds(uint256 supplyAmount) external OnlyOwner IsValidAddress returns(bool) {
         if(supplyAmount == 0 || supplyAmount < INITIAL_FUNDS) revert("PLEASE SUPPLY ATLEAST 50 USDT");
@@ -339,7 +351,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         return true;
     }
 
-     function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256, address) {
+     function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256, address) {
         // transfer the tokenIn amount to this contract
         // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         // then this contract approved uniswap router to pull the tokenIn amountIn
@@ -362,7 +374,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256, address) {
+    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256, address) {
 
         // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amountIn);
@@ -406,11 +418,11 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
             uint256 borrowedOrTradeAmount;
 
           unchecked {
-                    profits = amount - amountTokenOut; // this still needs tobe fixed
+                    profits = amount - amountTokenOut; 
                     borrowedOrTradeAmount = amount;
 
                     borrowedAmountInTotal += borrowedOrTradeAmount;
-                    tradeAcounts += 1;
+                    tradeCounts += 1;
                     user[borrower].totalBorrowedAmount += borrowedOrTradeAmount;
                     user[borrower].dailyTradeAmount += borrowedOrTradeAmount;
                     user[borrower].totalTrades += 1;
@@ -428,7 +440,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-    // this function wil be call by aave pool 
+    // this function wil be called by aave pool 
     function executeOperation(
         address asset, // asset we want to borrow
         uint256 amount, // asset amount
@@ -446,6 +458,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
           resetTradePair[1] = address(0);
 
           if(userTrade.userAddress == address(0)) revert FlashLoan_BorrowerAddressIsZero(userTrade.userAddress);
+          if(userTrade.pair[0] == address(0) || userTrade.pair[1] == address(0)) revert FlashLoan_InvalidTokenAddress();
           if(borrower != address(0) && borrower == userTrade.userAddress) {
                 // perform an arbitrage here..
                 (uint256 amountTokenIn, address tokenIn) = _uniswapV3(userTrade.pair[0], userTrade.pair[1], amount);
@@ -467,12 +480,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-
+    // TESTED
     function requestLoan(address assetToBorrow, uint256 amountToBorrow_, address targetTokenOut, address borrower) external IsValidAddress 
     NotBlacklisted 
     IsDailyTradeReached 
     IsDailyProfitReached 
     IsRegistered
+    IsTradeAllowed
     {
         address receiverAddress = address(this); // receiver will be this contract
         address asset = assetToBorrow; // we can borrow more than one assets
@@ -507,29 +521,34 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     } 
 
     /**
-      @dev get total asset that has been borrowed by all users
+      @dev get total asset that has been borrowed by all users (TESTED)
      */
     function getTotalBorrowed() external view returns(uint256 totalBorrowed) {
         totalBorrowed = borrowedAmountInTotal;
     }
 
+    // TESTED
     function getTotalTradesCount() external view returns(uint256) {
-        uint256 tradeInTotal = tradeAcounts;
+        uint256 tradeInTotal = tradeCounts;
         return tradeInTotal;
     }
 
+    // TESTED
     function getPackagesList() external view returns(uint32[] memory pckgsList) {
         pckgsList = packagesLists;
     }
 
+    // TESTED
     function getUserDetails(address account) public view returns(User memory user_) {
         user_ = user[account];
     }
 
+    // TESTED
     function getOwner() external view returns(address) {
         return i_owner;
     }
 
+    // TESTED
     function getTotalFunds() external view returns(uint256 balance) {
         balance = i_paymentToken.balanceOf(address(this));
     }
