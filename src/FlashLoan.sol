@@ -40,9 +40,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // ------------------------------- ERRORS -----------------------------------------
     error FlashLoan_ZeroAddress();
     error FlashLoan_NotEnoughBalance();
+    error FlashLoan_NoFundsAvailable();
     error FlashLoan_NotEnoughPayment();
     error FlashLoan_AcountBlacklisted();
-    error FlashLoan_NoAssetBeingPassed();
+    error FlashLoan_NoAssetBeingPassedOrAmountZero();
     error FLashLoan_UserNotRegistered();
     error FLashLoan_UserHasBeenRegistered();
     error FlashLoan_ProfitStillZero();
@@ -175,10 +176,12 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      function withdrawFunds(uint256 amountToWd) external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
         uint256 availableFunds = i_paymentToken.balanceOf(address(this));
 
+        if(availableFunds == 0) revert FlashLoan_NoFundsAvailable();
         if(amountToWd * PRECISION > availableFunds) revert FlashLoan_WithdrawAmountCannotBeMoreThanBalance("Withdraw amount cannot be more than available balance on this contract");
 
         if(availableFunds > 0) {
             i_paymentToken.transfer(i_owner, amountToWd * PRECISION );
+            emit Withdrawal_Successfull(msg.sender, amountToWd * PRECISION);
             return true;
         }
 
@@ -221,12 +224,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
      */
      function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
         uint256 userBalance = i_paymentToken.balanceOf(msg.sender);
-        if(payAmount_ < MINIMUM_PURCHASING) revert FlashLoan_NotEnoughPayment();
-        if(userBalance == 0 || userBalance <= payAmount_) revert FlashLoan_NotEnoughBalance();
+        uint256 amountToPay = payAmount_ * PRECISION;
+        if(amountToPay < MINIMUM_PURCHASING) revert FlashLoan_NotEnoughPayment();
+        if(userBalance == 0 || userBalance <= amountToPay) revert FlashLoan_NotEnoughBalance();
         if(user[msg.sender].isRegistered == true) revert FLashLoan_UserHasBeenRegistered();
         
-        i_paymentToken.transferFrom(msg.sender, address(this), payAmount_);
-        uint32 typesOfPckg = _altPackageChecking(packageTypes_, payAmount_);
+        i_paymentToken.transferFrom(msg.sender, address(this), amountToPay);
+        uint32 typesOfPckg = _altPackageChecking(packageTypes_, amountToPay);
         emit Purchasing_Successfull(msg.sender, typesOfPckg);
         return user[msg.sender];
      }
@@ -386,7 +390,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     ) external override returns (bool) {
 
           (address borrower) = abi.decode(params, (address));
-          UserTrade memory userTrade = getUserCurrentTrade(borrower);
+          UserTrade memory userTrade = user[borrower].userTrade;
           uint256 amountOwed;
 
           address[] memory resetTradePair = new address[](2);
@@ -406,8 +410,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 _updateUserData(amountTokenOut, amount, borrower);
 
                 // reset user trade
-                userTrade.pair = resetTradePair;
-                userTrade.amountTokenIn = 0;
+                 user[borrower].userTrade.pair = resetTradePair;
+                 user[borrower].userTrade.amountTokenIn = 0;
                 IERC20(asset).approve(address(POOL), amountOwed); // give a permission to an aave lending pool to take back the loaned fund 
                 return true;
             }
@@ -433,7 +437,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         tradePair[1] = targetTokenOut;
 
         if(contractBalancesOfUsdt < amountToBorrow_ * PRECISION || contractBalancesOfUsdt == 0) revert FlashLoan_NotEnoughFeeToCoverTxs();
-        if(assetToBorrow == address(0) && amountToBorrow_ == 0) revert FlashLoan_NoAssetBeingPassed();
+        if(assetToBorrow == address(0) || amountToBorrow_ == 0) revert FlashLoan_NoAssetBeingPassedOrAmountZero();
 
            user[borrower].userTrade.userAddress = borrower;
            user[borrower].userTrade.pair = tradePair;

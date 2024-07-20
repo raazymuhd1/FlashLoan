@@ -20,7 +20,7 @@ contract FlashLoanTest is Test {
     address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     address public ZERO_ADDRESS = address(0);
     uint256 public PRECISION = 1e6;
-    uint256 public TEST_BUY_AMT = 1000 * PRECISION;
+    uint256 public TEST_BUY_AMT = 1000;
     address USDT; 
     address WETH;
     address POOL_ADDRESSES;
@@ -35,9 +35,9 @@ contract FlashLoanTest is Test {
         flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
-        vm.prank(USER);
-        // // deposit some initial funds into flashloan contract
-        UsdtToken.transfer(address(flashloan), 20 * PRECISION);
+        // vm.prank(USER);
+        // // // deposit some initial funds into flashloan contract
+        // UsdtToken.transfer(address(flashloan), 20 * PRECISION);
     }
 
     modifier Blacklisted() {
@@ -60,7 +60,7 @@ contract FlashLoanTest is Test {
 
     function test_purchasingPackageNonBlacklistedAccount() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 5000;
+        uint32 pckgType = 1000;
 
         vm.startPrank(USER);
         UsdtToken.mintToken();
@@ -72,7 +72,7 @@ contract FlashLoanTest is Test {
         console.log(userBfore.userAddress);
 
         if(userBalance > 0) {
-            UsdtToken.approve(address(flashloan), TEST_BUY_AMT);
+            UsdtToken.approve(address(flashloan), TEST_BUY_AMT * PRECISION);
             FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
             console.log(userAfter.userAddress);
             uint contractBalance = UsdtToken.balanceOf(address(flashloan));
@@ -185,7 +185,25 @@ contract FlashLoanTest is Test {
         assert(restricted == true);
    }
 
-   
+    function test_restrictRestrictedAccount() public PurchasingPackage(ANOTHER_USER) {
+        bool tradeAllowed = false;
+        bool withdrawAllowed = false;
+
+        vm.startPrank(USER);
+        FlashLoan.User memory userBforeRestricted = flashloan.getUserDetails(ANOTHER_USER);
+        console.log("before restricted");
+        console.log(userBforeRestricted.isTradeAllowed);
+        bool restricted = flashloan.restrictAccountActions(ANOTHER_USER, tradeAllowed, withdrawAllowed);
+        console.log(restricted);
+        FlashLoan.User memory userAfterRestricted = flashloan.getUserDetails(ANOTHER_USER);
+        console.log("after restricted");
+        console.log(userAfterRestricted.isTradeAllowed);
+
+        flashloan.restrictAccountActions(ANOTHER_USER, tradeAllowed, withdrawAllowed);
+        vm.stopPrank();
+
+        assert(restricted == true);
+   }
 
    function test_withdrawProfit() public PurchasingPackage(ANOTHER_USER) {
         uint256 amountToWd = 100 * PRECISION;
@@ -193,10 +211,36 @@ contract FlashLoanTest is Test {
         bool withdrew = flashloan.withdrawProfit(amountToWd);
    }
 
-   function test_withdrawFundsByOwner() public PurchasingPackage(ANOTHER_USER) {
+   function test_withdrawFundsByOwner() public {
       vm.startPrank(USER);
+      UsdtToken.mintToken();
+      UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
       bool success = flashloan.withdrawFunds(100);
 
+      console.log(success);
+   }
+
+   function test_withdrawFundsAboveAvailableAmounts() public {
+      vm.startPrank(USER);
+      UsdtToken.mintToken();
+      UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
+      bool success = flashloan.withdrawFunds(2000);
+
+      console.log(success);
+   }
+
+   function test_withdrawFundsByNonOwner() public {
+      vm.startPrank(ANOTHER_USER);
+      UsdtToken.mintToken();
+      UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
+      bool success = flashloan.withdrawFunds(2000);
+
+      console.log(success);
+   }
+
+   function test_withdrawFundsZeroAmount() public {
+      vm.startPrank(USER);
+      bool success = flashloan.withdrawFunds(2000);
       console.log(success);
    }
 
