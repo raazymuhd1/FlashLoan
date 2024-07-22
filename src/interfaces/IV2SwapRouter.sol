@@ -3,7 +3,7 @@ pragma solidity 0.8.10;
 
 interface IV2SwapRouter {
 
-    struct SushiswapParams {
+    struct ExactInputSingleParams {
         address tokenIn;
         address tokenOut;
         address recipient;
@@ -21,7 +21,7 @@ interface IV2SwapRouter {
         uint deadline
     ) external returns (uint[] memory amounts);
 
-    function exactInputSingle(SushiswapParams calldata params) external payable returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 
     function swapExactTokensForTokens(
         uint amountIn,

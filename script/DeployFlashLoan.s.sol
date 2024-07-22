@@ -15,7 +15,6 @@ contract DeployFlashLoan is Script {
     function run(address payable flashloanOwner_, address USDT, address POOL_ADDRESSES) external returns(FlashLoan) {
 
         vm.startBroadcast();
-        // flashLoan = new FlashLoan(address(erc20Mock), address(mockPoolAddressProvider), flashloanOwner_); 
         flashLoan = new FlashLoan(USDT, POOL_ADDRESSES, flashloanOwner_); 
         vm.stopBroadcast();
 

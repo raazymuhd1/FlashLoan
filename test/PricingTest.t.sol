@@ -21,8 +21,8 @@ contract PricingTest is Test {
 
     function test_getPrice() public {
          vm.startPrank(USER);
-         int price = pricing.getTokenPrice();
-         console.logInt(price);
+         uint256 price = pricing.getTokenPrice();
+         console.log(price);
 
          vm.stopPrank();
     }

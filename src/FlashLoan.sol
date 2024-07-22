@@ -80,8 +80,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     // DEXES ROUTER
     IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45); // POLYGON / ETH MAINNET
     IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506); 
-    // IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff); // quickswap v2
-    IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xf5b509bB0909a69B1c207E495f687a596C168E12); // quickswap v3 
+    IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff); // quickswap v3 
 
     // ------------------------ MAPPINGS ----------------------------------------
     mapping(address => User) private user;
@@ -348,11 +347,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         return true;
     }
 
-     function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256, address) {
-        // uint256 inAmount = amountIn / (2 * PRECISION);
-        uint256 inAmount = amountIn / (1 * PRECISION);
-        // transfer the tokenIn amount to this contract
-        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+     function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress returns(uint256, address) {
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         // then this contract approved uniswap router to pull the tokenIn amountIn
         IERC20(tokenIn).approve(address(UNISWAP_ROUTERV3), amountIn);
 
@@ -374,14 +370,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) internal IsValidAddress returns(uint256) {
-        uint256 outMin = amountOut - (1 * PRECISION);
+    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress returns(uint256) {
+        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amountIn);
 
         address[] memory path = new address[](2);
         path[0] = tokenIn;
         path[1] = tokenOut; 
-
         uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapExactTokensForTokens(
                 amountIn,
                 1,
@@ -390,32 +385,37 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 block.timestamp
             );
 
-        // uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapTokensForExactTokens(
-        //         outMin,
-        //         amountIn,
-        //         path,
-        //         address(this),
-        //         block.timestamp 
-        //     );
         return amounts[1];
-        
     }
 
-    function quickSwap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256){
-
+    function quickSwap(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress NotBlacklisted returns(uint256){
+       
         IERC20(tokenIn).approve(address(QUICKSWAP_ROUTERV2), amountIn);
 
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = tokenOut; 
-        uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapTokensForExactTokens(
-                amountIn,
-                0,
-                path,
-                address(this),
-                block.timestamp
-            );
-        return amounts[1];
+        // address[] memory path = new address[](2);
+        // path[0] = tokenIn;
+        // path[1] = tokenOut; 
+        // uint256[] memory  amounts = QUICKSWAP_ROUTERV2.swapExactTokensForTokens(
+        //         amountIn,
+        //         0,
+        //         path,
+        //         address(this),
+        //         block.timestamp
+        //     );
+
+        IV2SwapRouter.ExactInputSingleParams memory params =
+            IV2SwapRouter.ExactInputSingleParams({
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 1,
+                limitSqrtPrice: 0
+            });
+
+        uint256 amountTokenOut = QUICKSWAP_ROUTERV2.exactInputSingle(params);
+        return amountTokenOut;
         
     }
 
@@ -474,7 +474,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
                 // perform an arbitrage here..
                 (uint256 amountTokenIn, address tokenIn) = _uniswapV3(userTrade.pair[0], userTrade.pair[1], userTrade.amountTokenIn);
-                 uint256 amountTokenOut = _sushiswap(tokenIn, userTrade.pair[0], amountTokenIn, borrowedAmount);
+                 uint256 amountTokenOut = _sushiswap(tokenIn, userTrade.pair[0], amountTokenIn);
                 //  uint256 amountTokenOut = quickSwap(tokenIn, userTrade.pair[0], amountTokenIn);
 
                 unchecked {

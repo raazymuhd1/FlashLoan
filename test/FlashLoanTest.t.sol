@@ -5,8 +5,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { FlashLoan } from "../src/FlashLoan.sol";
 import { ERC20Mock } from "../src/mocks/MockERC.sol";
 import { HelperConfig } from "../script/HelperConfig.s.sol";
-import { IERC20 } from "../src/mocks/ERC20Test.sol";
-// import { IERC20 } from "@aave-coreV3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
+import { IERC20 } from "../src/interfaces/IERC20.sol";
 import {MockPoolAddressesProvider} from "../src/mocks/MockPoolAddrProvider.sol";
 
 contract FlashLoanTest is Test {
@@ -28,17 +27,17 @@ contract FlashLoanTest is Test {
     address POOL_ADDRESSES;
     address USER;
 
+    address WMATIC = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
     address WBTC = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
-    address MANA = 0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4;
-
-    address AAVE = 0xD6DF932A45C0f255f85145f286eA0b292B21C90B;
+    address MANA = 0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4; // 4 decimals returns
     address LINK = 0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39; // LINK & WETH & AAVE CORRECT
     address UNI = 0xb33EaAd8d922B1083446DC23f610c2567fB5180f;
-    // address SUSHI = 0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a; NOT SUPPORTED
-   //  address GRAPH = 0x5fe2B58c013d7601147DcdD68C143A77499f5531; NOT SUPPORTED
-   //  address COMPOUND = 0x8505b9d2254A7Ae468c0E9dd10Ccea3A837aef5c; NOT SUPPORTED
-   //  address BAL = 0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3; NOT SUPPORTED
-   //  address SANDBOX = 0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683; NOT SUPPORTED
+    address CURV = 0x172370d5Cd63279eFa6d502DAB29171933a610AF;  // NOT SUPPORTED
+    address AAVE = 0xD6DF932A45C0f255f85145f286eA0b292B21C90B;
+    address INCH1 = 0x9c2C5fd7b07E95EE044DDeba0E97a665F142394f;  // NOT SUPPORTED
+    address MKR = 0x6f7C932e7684666C9fd1d44527765433e01fF61d;  // NOT SUPPORTED
+    address SAND = 0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683;  // NOT SUPPORTED
+    address BAL = 0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3;  // NOT SUPPORTED
 
     function setUp() public {
          helper = new HelperConfig();
@@ -50,9 +49,9 @@ contract FlashLoanTest is Test {
 
         vm.deal(USER, 10 ether);
         vm.deal(ANOTHER_USER, 10 ether);
-        vm.prank(USER);
+        // vm.prank(USER);
         // // deposit some initial funds into flashloan contract
-        UsdtToken.transfer(address(flashloan), 5 * PRECISION);
+        // UsdtToken.transfer(address(flashloan), 5 * PRECISION);
     }
 
     modifier Blacklisted() {
@@ -473,6 +472,51 @@ contract FlashLoanTest is Test {
       console.log(owner);
       vm.stopPrank();
    }
+
+    function test_uniswap() public {
+    //   WBTC = 8 decimals
+    // WETH = 18 decimals
+    // LINK = 18 decimals
+    // WMATIC = 18 decimals
+    //  AAVE/WETH
+    // WETH/WBTC
+    // USDT/WETH
+    // USDT/WMATIC
+    // WETH/WMATIC
+    // WETH/USDT NOTE (LOW LIQ)
+    // WETH/MANA NOTE (LOW LIQ)
+
+    // BAL, USDT, UNI == NOTE SHOULD BE TAKEN ABOUT THE PRICE
+      uint256 amtIn = 0.01 ether;
+      vm.startPrank(USER);
+      UsdtToken.approve(address(flashloan), amtIn);
+      (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(WETH, AAVE, amtIn);
+      console.log(amountOut);
+      
+      IERC20(WETH).approve(address(flashloan), amtIn);
+      uint256 outAmt = flashloan._sushiswap(AAVE, WETH, amtIn);
+      console.log(outAmt);
+
+
+      vm.stopPrank();
+      
+    }
+
+    function test_uniswapSecond() public {
+      uint256 amtIn = 0.01 ether;
+      vm.startPrank(USER);
+    //   UsdtToken.approve(address(flashloan), amtIn);
+    //   (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(USDT, SAND, amtIn);
+    //   console.log(amountOut);
+      
+      IERC20(WETH).approve(address(flashloan), amtIn);
+      uint256 outAmt = flashloan._sushiswap(WETH, LINK, amtIn);
+      console.log(outAmt);
+
+
+      vm.stopPrank();
+      
+    }
 
 }
  
