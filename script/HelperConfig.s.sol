@@ -36,7 +36,7 @@ contract HelperConfig {
             POOL_ADDRESSES: 0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb,
             USER: 0xD5C08681719445A5Fdce2Bda98b341A49050d821
         });
-
+        
         return params;  
     }
 
@@ -47,7 +47,7 @@ contract HelperConfig {
             USDT: 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0,
             WETH: 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9,
             POOL_ADDRESSES: 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A,
-            USER: 0x3D002404deee63697fBEf95657DcE57335BF561D
+            USER: 0xb1B83bC9d243C23b3e884C1cd3F5415e0E484423
         });
 
         return params;

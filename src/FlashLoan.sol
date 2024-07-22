@@ -69,7 +69,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     uint256 private constant FIVE_THOUSAND = 5000 * PRECISION;
     uint256 private constant TEN_THOUSAND = 10000 * PRECISION;
     uint256 private constant PROFIT_WD_FEE = 0.001 ether;
-    uint256 private constant INITIAL_FUNDS = 50 * PRECISION;
+    uint256 private constant INITIAL_FUNDS = 5 * PRECISION;
     address payable private immutable i_owner;
     IERC20 private immutable i_paymentToken; // payment for purchasing packages
     address private immutable i_poolAddress;
@@ -162,17 +162,17 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     }
 
     modifier IsRegistered() {
-        if(user[msg.sender].isRegistered == false) revert FLashLoan_UserNotRegistered();
+        if(user[msg.sender].isRegistered == false && msg.sender != i_owner) revert FLashLoan_UserNotRegistered();
         _;
     }
 
     modifier IsWithdrawAllowed() {
-        if(user[msg.sender].isWithdrawAllowed == false) revert FlashLoan_NotAllowedToWithdraw();
+        if(user[msg.sender].isWithdrawAllowed == false && msg.sender != i_owner) revert FlashLoan_NotAllowedToWithdraw();
         _;
     }
 
     modifier IsTradeAllowed() {
-        if(user[msg.sender].isTradeAllowed == false) revert FlashLoan_NotAllowedToTrade();
+        if(user[msg.sender].isTradeAllowed == false && msg.sender != i_owner) revert FlashLoan_NotAllowedToTrade();
         _;
     }
 
@@ -264,17 +264,17 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     @param packageTypes_ - types of package
     @param payAmount_ - amount of user needs to pay for the package (TESTED)
      */
-     function purchasePackage(uint32 packageTypes_, uint256 payAmount_) external IsValidAddress NotBlacklisted returns(User memory) {
+     function purchasePackage(uint32 packageTypes_, uint256 payAmount_, address userTo_) external IsValidAddress NotBlacklisted returns(User memory) {
         uint256 userBalance = i_paymentToken.balanceOf(msg.sender);
         uint256 amountToPay = payAmount_;
         if(amountToPay < MINIMUM_PURCHASING) revert FlashLoan_NotEnoughPayment();
         if(userBalance == 0 || userBalance <= amountToPay) revert FlashLoan_NotEnoughBalance();
-        if(user[msg.sender].isRegistered == true) revert FLashLoan_UserHasBeenRegistered();
+        if(user[userTo_].isRegistered == true) revert FLashLoan_UserHasBeenRegistered();
         
         i_paymentToken.transferFrom(msg.sender, address(this), amountToPay);
-        uint32 typesOfPckg = _altPackageChecking(packageTypes_, amountToPay);
+        uint32 typesOfPckg = _altPackageChecking(packageTypes_, amountToPay, userTo_);
         emit Purchasing_Successfull(msg.sender, typesOfPckg);
-        return user[msg.sender];
+        return user[userTo_];
      }
 
 
@@ -283,7 +283,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @param packageTypes_ - types of packages user selected
         @param payAmount_ - an amount user needs to pay for user selected packages
       */
-     function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal returns(uint32) {
+     function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_, address userTo_) internal returns(uint32) {
         uint32 typesOfPackage;
         uint256 dailyProfitAmount = 0;
         uint256 dailyTradeAmount = 0;
@@ -293,9 +293,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         Packages packageType = Packages.FiveHundreds;
         uint256 dailyLimitTradeAmount = 20;
         uint256 dailyProfitLimitAmount = 50;
-        bool isRegistered = true;
-        bool isTradeAllowed = true;
-        bool isWithdrawAllowed = true;
 
         // payAmount_ ( ex: 10_000_000 usdt (6 decimals) >= MINIMUM_PURCHASING (500_000_000 usdt) 6 decimals )
         // on the frontend needs to pass an amount * PRECISION (usdt decimals)
@@ -333,9 +330,9 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         address[] memory defaultPair = new address[](2);
         defaultPair[0] = address(0);
         defaultPair[1] = address(0);
-        UserTrade memory userTrades = UserTrade(msg.sender, defaultPair, 0);
-        user[msg.sender] = User( 
-             msg.sender, dailyProfitAmount, dailyTradeAmount, totalBorrowedAmount, totalProfitAmount, totalTrades, packageType, dailyLimitTradeAmount * PRECISION, dailyProfitLimitAmount * PRECISION, isRegistered, isTradeAllowed, isWithdrawAllowed, userTrades); 
+        UserTrade memory userTrades = UserTrade(userTo_, defaultPair, 0);
+        user[userTo_] = User( 
+             userTo_, 0, 0, 0, 0, 0, packageType, dailyLimitTradeAmount * PRECISION, dailyProfitLimitAmount * PRECISION, true, true, true, userTrades); 
 
         return typesOfPackage;
      }
@@ -345,13 +342,15 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @param supplyAmount - an amount to supply (TESTED)
      */
     function supplyInitialFunds(uint256 supplyAmount) external OnlyOwner IsValidAddress returns(bool) {
-        if(supplyAmount == 0 || supplyAmount < INITIAL_FUNDS) revert("PLEASE SUPPLY ATLEAST 50 USDT");
+        if(supplyAmount == 0 || supplyAmount < INITIAL_FUNDS) revert("PLEASE SUPPLY ATLEAST 5 USDT");
         i_paymentToken.transferFrom(msg.sender, address(this), supplyAmount);
         emit FundsHasBeenSupplied(msg.sender, supplyAmount);
         return true;
     }
 
      function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256, address) {
+        // uint256 inAmount = amountIn / (2 * PRECISION);
+        uint256 inAmount = amountIn / (1 * PRECISION);
         // transfer the tokenIn amount to this contract
         // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         // then this contract approved uniswap router to pull the tokenIn amountIn
@@ -364,6 +363,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 fee: 3000,
                 recipient: address(this),
                 // deadline: block.timestamp,
+                // amountIn: inAmount,
                 amountIn: amountIn,
                 amountOutMinimum: 1,
                 sqrtPriceLimitX96: 0
@@ -374,41 +374,48 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
     }
 
-    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256, address) {
-
-        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) internal IsValidAddress returns(uint256) {
+        uint256 outMin = amountOut - (1 * PRECISION);
         IERC20(tokenIn).approve(address(SUSHISWAP_ROUTERV2), amountIn);
 
         address[] memory path = new address[](2);
         path[0] = tokenIn;
         path[1] = tokenOut; 
+
         uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapExactTokensForTokens(
                 amountIn,
-                0,
+                1,
                 path,
                 address(this),
                 block.timestamp
             );
-        return (amounts[1], tokenOut);
+
+        // uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapTokensForExactTokens(
+        //         outMin,
+        //         amountIn,
+        //         path,
+        //         address(this),
+        //         block.timestamp 
+        //     );
+        return amounts[1];
         
     }
 
-    function quickSwap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256[] memory){
+    function quickSwap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress NotBlacklisted returns(uint256){
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenIn).approve(address(QUICKSWAP_ROUTERV2), amountIn);
 
         address[] memory path = new address[](2);
         path[0] = tokenIn;
         path[1] = tokenOut; 
-        uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapExactTokensForTokens(
+        uint256[] memory  amounts = SUSHISWAP_ROUTERV2.swapTokensForExactTokens(
                 amountIn,
                 0,
                 path,
                 address(this),
                 block.timestamp
             );
-        return amounts;
+        return amounts[1];
         
     }
 
@@ -416,9 +423,11 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     function _updateUserData(uint256 amountTokenOut, uint256 amount, address borrower) internal {
             uint256 profits;
             uint256 borrowedOrTradeAmount;
+            uint256 calculatedProfits;
 
           unchecked {
-                    profits = amount - amountTokenOut; 
+                    calculatedProfits = amountTokenOut;
+                    profits += calculatedProfits; 
                     borrowedOrTradeAmount = amount;
 
                     borrowedAmountInTotal += borrowedOrTradeAmount;
@@ -451,6 +460,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
           (address borrower) = abi.decode(params, (address));
           UserTrade memory userTrade = user[borrower].userTrade;
+          uint256 borrowedAmount = amount; 
           uint256 amountOwed;
 
           address[] memory resetTradePair = new address[](2);
@@ -459,17 +469,20 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
 
           if(userTrade.userAddress == address(0)) revert FlashLoan_BorrowerAddressIsZero(userTrade.userAddress);
           if(userTrade.pair[0] == address(0) || userTrade.pair[1] == address(0)) revert FlashLoan_InvalidTokenAddress();
+
           if(borrower != address(0) && borrower == userTrade.userAddress) {
+
                 // perform an arbitrage here..
-                (uint256 amountTokenIn, address tokenIn) = _uniswapV3(userTrade.pair[0], userTrade.pair[1], amount);
-                (uint256 amountTokenOut, address tokenOut) = _sushiswap(tokenIn, userTrade.pair[0], amountTokenIn);
+                (uint256 amountTokenIn, address tokenIn) = _uniswapV3(userTrade.pair[0], userTrade.pair[1], userTrade.amountTokenIn);
+                 uint256 amountTokenOut = _sushiswap(tokenIn, userTrade.pair[0], amountTokenIn, borrowedAmount);
+                //  uint256 amountTokenOut = quickSwap(tokenIn, userTrade.pair[0], amountTokenIn);
 
                 unchecked {
-                    amountOwed = amount + premium; // repay amount we borrow + fee ( premium )
+                    amountOwed = borrowedAmount + premium;
                 }
 
-                _updateUserData(amountTokenOut, amount, borrower);
-
+                
+                _updateUserData(amountTokenOut, borrowedAmount, borrower);
                 // reset user trade
                  user[borrower].userTrade.pair = resetTradePair;
                  user[borrower].userTrade.amountTokenIn = 0;
@@ -499,7 +512,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         tradePair[0] = assetToBorrow;
         tradePair[1] = targetTokenOut;
 
-        if(contractBalancesOfUsdt < amount || contractBalancesOfUsdt == 0) revert FlashLoan_NotEnoughFeeToCoverTxs();
+        // if(contractBalancesOfUsdt < amount || contractBalancesOfUsdt == 0) revert FlashLoan_NotEnoughFeeToCoverTxs();
         if(assetToBorrow == address(0) || amount == 0) revert FlashLoan_NoAssetBeingPassedOrAmountZero();
 
            user[borrower].userTrade.userAddress = borrower;
@@ -552,5 +565,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     function getTotalFunds() external view returns(uint256 balance) {
         balance = i_paymentToken.balanceOf(address(this));
     }
+
 
 }
