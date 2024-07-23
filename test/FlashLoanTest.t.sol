@@ -350,7 +350,7 @@ contract FlashLoanTest is Test {
       uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
 
        console.log(beforeTrade);
-       console.log(afterTrade);
+       console.log(afterTrade - 1e12);
       vm.stopPrank();
    }
 
