@@ -17,6 +17,7 @@ contract FlashLoanTest is Test {
     // address public USER = makeAddr("USER");
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = 0x781229c7a798c33EC788520a6bBe12a79eD657FC;
+    address public WHALE1 = 0x4D8336bDa6C11BD2a805C291Ec719BaeDD10AcB9;
    //  address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     address public ZERO_ADDRESS = address(0);
     uint256 public PRECISION = 1e6;
@@ -26,15 +27,18 @@ contract FlashLoanTest is Test {
     address WETH;
     address POOL_ADDRESSES;
     address USER;
-
+    address USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
+    address SNX = 0x50B728D8D964fd00C2d0AAD81718b71311feF68a;
+    address FRAX = 0x104592a158490a9228070E0A8e5343B499e125D0;
     address WMATIC = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
+    address DAI = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
     address WBTC = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
     address MANA = 0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4; // 4 decimals returns
     address LINK = 0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39; // LINK & WETH & AAVE CORRECT
     address UNI = 0xb33EaAd8d922B1083446DC23f610c2567fB5180f;
     address CURV = 0x172370d5Cd63279eFa6d502DAB29171933a610AF;  // NOT SUPPORTED
     address AAVE = 0xD6DF932A45C0f255f85145f286eA0b292B21C90B;
-    address INCH1 = 0x9c2C5fd7b07E95EE044DDeba0E97a665F142394f;  // NOT SUPPORTED
+    address INCH1 = 0x9c2C5fd7b07E95EE044DDeba0E97a665F142394f;  // LOW LIQ
     address MKR = 0x6f7C932e7684666C9fd1d44527765433e01fF61d;  // NOT SUPPORTED
     address SAND = 0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683;  // NOT SUPPORTED
     address BAL = 0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3;  // NOT SUPPORTED
@@ -49,9 +53,6 @@ contract FlashLoanTest is Test {
 
         vm.deal(USER, 10 ether);
         vm.deal(ANOTHER_USER, 10 ether);
-        // vm.prank(USER);
-        // // deposit some initial funds into flashloan contract
-        // UsdtToken.transfer(address(flashloan), 5 * PRECISION);
     }
 
     modifier Blacklisted() {
@@ -315,13 +316,29 @@ contract FlashLoanTest is Test {
       console.log(success);
    }
 
-   function test_borrowAsset() public  {
-      uint256 testAmt = 1080 * PRECISION;
+   function test_borrowAsset() public PurchasingPackage(WHALE1)  {
+      uint256 testAmt = 10 * 1e18;
+       //   WBTC = 8 decimals
+    // WETH = 18 decimals
+    // LINK = 18 decimals (NOT RECOMMENDED)
+    // WMATIC = 18 decimals
+    //  AAVE/WETH approved
+    // WETH/WBTC
+    // USDT/WETH
+    // USDT/WMATIC
+    // WETH/WMATIC
+    // DAI/WETH
+    // WETH/LINK (GOOD LIQ)
+    // WETH/USDT (GOOD LIQ)
+    // WETH/MANA NOTE (LOW LIQ)
+    // WBTC/WMATIC (HIGH GAS FE
 
-      vm.startPrank(USER);
-      flashloan.requestLoan(USDT, testAmt, WETH, USER);
-      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(USER);
-      FlashLoan.User memory user = flashloan.getUserDetails(USER);
+      vm.startPrank(WHALE1);
+      IERC20(DAI).transfer(address(flashloan), 25 * 1e18);
+
+      flashloan.requestLoan(DAI, testAmt, UNI, WHALE1);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE1);
+      FlashLoan.User memory user = flashloan.getUserDetails(WHALE1);
     //   console.log("user trade"); 39_799_479
       console.log(userTrade.userAddress);
       console.log(user.dailyProfitAmount);
@@ -478,23 +495,26 @@ contract FlashLoanTest is Test {
     // WETH = 18 decimals
     // LINK = 18 decimals
     // WMATIC = 18 decimals
-    //  AAVE/WETH
+    //  AAVE/WETH approved
     // WETH/WBTC
     // USDT/WETH
     // USDT/WMATIC
     // WETH/WMATIC
-    // WETH/USDT NOTE (LOW LIQ)
+    // WMATIC/AAVE
+    // WETH/LINK (GOOD LIQ)
+    // WETH/USDT (GOOD LIQ)
     // WETH/MANA NOTE (LOW LIQ)
+    // WBTC/WMATIC (HIGH GAS FEE)
 
     // BAL, USDT, UNI == NOTE SHOULD BE TAKEN ABOUT THE PRICE
       uint256 amtIn = 0.01 ether;
       vm.startPrank(USER);
-      UsdtToken.approve(address(flashloan), amtIn);
-      (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(WETH, AAVE, amtIn);
+    //   UsdtToken.approve(address(flashloan), amtIn);
+      IERC20(WETH).approve(address(flashloan), amtIn);
+      (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(WETH, LINK, amtIn);
       console.log(amountOut);
       
-      IERC20(WETH).approve(address(flashloan), amtIn);
-      uint256 outAmt = flashloan._sushiswap(AAVE, WETH, amtIn);
+      uint256 outAmt = flashloan._sushiswap(LINK, DAI, amountOut);
       console.log(outAmt);
 
 
@@ -502,21 +522,21 @@ contract FlashLoanTest is Test {
       
     }
 
-    function test_uniswapSecond() public {
-      uint256 amtIn = 0.01 ether;
-      vm.startPrank(USER);
-    //   UsdtToken.approve(address(flashloan), amtIn);
-    //   (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(USDT, SAND, amtIn);
-    //   console.log(amountOut);
+    // function test_uniswapSecond() public {
+    //   uint256 amtIn = 0.01 ether;
+    //   vm.startPrank(USER);
+    // //   UsdtToken.approve(address(flashloan), amtIn);
+    // //   (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(USDT, SAND, amtIn);
+    // //   console.log(amountOut);
       
-      IERC20(WETH).approve(address(flashloan), amtIn);
-      uint256 outAmt = flashloan._sushiswap(WETH, LINK, amtIn);
-      console.log(outAmt);
+    //   IERC20(WETH).approve(address(flashloan), amtIn);
+    //   uint256 outAmt = flashloan._sushiswap(WETH, LINK, amtIn);
+    //   console.log(outAmt);
 
 
-      vm.stopPrank();
+    //   vm.stopPrank();
       
-    }
+    // }
 
 }
  

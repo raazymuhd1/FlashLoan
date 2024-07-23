@@ -348,7 +348,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     }
 
      function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress returns(uint256, address) {
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         // then this contract approved uniswap router to pull the tokenIn amountIn
         IERC20(tokenIn).approve(address(UNISWAP_ROUTERV3), amountIn);
 
@@ -391,31 +391,30 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     function quickSwap(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress NotBlacklisted returns(uint256){
        
         IERC20(tokenIn).approve(address(QUICKSWAP_ROUTERV2), amountIn);
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut; 
+        uint256[] memory  amounts = QUICKSWAP_ROUTERV2.swapExactTokensForTokens(
+                amountIn,
+                0,
+                path,
+                address(this),
+                block.timestamp
+            );
 
-        // address[] memory path = new address[](2);
-        // path[0] = tokenIn;
-        // path[1] = tokenOut; 
-        // uint256[] memory  amounts = QUICKSWAP_ROUTERV2.swapExactTokensForTokens(
-        //         amountIn,
-        //         0,
-        //         path,
-        //         address(this),
-        //         block.timestamp
-        //     );
+        // IV2SwapRouter.ExactInputSingleParams memory params =
+        //     IV2SwapRouter.ExactInputSingleParams({
+        //         tokenIn: tokenIn,
+        //         tokenOut: tokenOut,
+        //         recipient: address(this),
+        //         deadline: block.timestamp,
+        //         amountIn: amountIn,
+        //         amountOutMinimum: 1,
+        //         limitSqrtPrice: 0
+        //     });
+        // uint256 amountTokenOut = QUICKSWAP_ROUTERV2.exactInputSingle(params);
 
-        IV2SwapRouter.ExactInputSingleParams memory params =
-            IV2SwapRouter.ExactInputSingleParams({
-                tokenIn: tokenIn,
-                tokenOut: tokenOut,
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: amountIn,
-                amountOutMinimum: 1,
-                limitSqrtPrice: 0
-            });
-
-        uint256 amountTokenOut = QUICKSWAP_ROUTERV2.exactInputSingle(params);
-        return amountTokenOut;
+        return amounts[1];
         
     }
 
@@ -462,21 +461,20 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
           UserTrade memory userTrade = user[borrower].userTrade;
           uint256 borrowedAmount = amount; 
           uint256 amountOwed;
-
           address[] memory resetTradePair = new address[](2);
           resetTradePair[0] = address(0);
           resetTradePair[1] = address(0);
 
           if(userTrade.userAddress == address(0)) revert FlashLoan_BorrowerAddressIsZero(userTrade.userAddress);
           if(userTrade.pair[0] == address(0) || userTrade.pair[1] == address(0)) revert FlashLoan_InvalidTokenAddress();
-
           if(borrower != address(0) && borrower == userTrade.userAddress) {
 
                 // perform an arbitrage here..
                 (uint256 amountTokenIn, address tokenIn) = _uniswapV3(userTrade.pair[0], userTrade.pair[1], userTrade.amountTokenIn);
                  uint256 amountTokenOut = _sushiswap(tokenIn, userTrade.pair[0], amountTokenIn);
                 //  uint256 amountTokenOut = quickSwap(tokenIn, userTrade.pair[0], amountTokenIn);
-
+                // I Can calculate user profit on each trade by comparing their trade amount with the output token amount after trade ( output token (in usd) > trade amount (in usd) = output token - trade amount )
+                // if output token amount less than trade amount then just give 1% of their trade back as profit
                 unchecked {
                     amountOwed = borrowedAmount + premium;
                 }
