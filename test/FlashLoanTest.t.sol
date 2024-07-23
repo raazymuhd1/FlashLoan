@@ -7,8 +7,12 @@ import { ERC20Mock } from "../src/mocks/MockERC.sol";
 import { HelperConfig } from "../script/HelperConfig.s.sol";
 import { IERC20 } from "../src/interfaces/IERC20.sol";
 import {MockPoolAddressesProvider} from "../src/mocks/MockPoolAddrProvider.sol";
+import { DeployPricingTable } from "../script/DeployPricing.s.sol";
+import { PricingTable } from "../src/Pricing.sol";
 
 contract FlashLoanTest is Test {
+    DeployPricingTable pricingDeployer;
+    PricingTable pricing;
     DeployFlashLoan deployer;
     FlashLoan flashloan;
     IERC20 UsdtToken;
@@ -47,6 +51,9 @@ contract FlashLoanTest is Test {
          helper = new HelperConfig();
         ( USDT, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
          UsdtToken = IERC20(USDT);
+
+        pricingDeployer = new DeployPricingTable();
+        pricing = pricingDeployer.run();
 
         deployer = new DeployFlashLoan();
         flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
@@ -335,18 +342,15 @@ contract FlashLoanTest is Test {
 
       vm.startPrank(WHALE1);
       IERC20(DAI).transfer(address(flashloan), 25 * 1e18);
-
-      flashloan.requestLoan(DAI, testAmt, UNI, WHALE1);
+    //   993_439_529_542_205_375_985
+      uint256 beforeTrade = pricing.getTokenPriceInUsd(DAI, testAmt);
+      flashloan.requestLoan(DAI, testAmt, WETH, WHALE1);
       FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE1);
       FlashLoan.User memory user = flashloan.getUserDetails(WHALE1);
-    //   console.log("user trade"); 39_799_479
-      console.log(userTrade.userAddress);
-      console.log(user.dailyProfitAmount);
-      console.log(user.dailyTradeAmount);
-      console.log(user.totalTrades);
+      uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
 
-       console.log(UsdtToken.balanceOf(address(flashloan)));
-    //   bool withdrew = flashloan.withdrawProfit{value: PROFIT_WD_FEE}(user.dailyProfitAmount);
+       console.log(beforeTrade);
+       console.log(afterTrade);
       vm.stopPrank();
    }
 

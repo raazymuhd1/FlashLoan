@@ -504,13 +504,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         uint256 amount = amountToBorrow_;
         bytes memory params = abi.encode(borrower); // this is needed to identified the borrower address
         uint16 refCode = 0;
-        uint256 contractBalancesOfUsdt = IERC20(assetToBorrow).balanceOf(address(this));
+        uint256 contractBalanceOfAssets = IERC20(assetToBorrow).balanceOf(address(this));
 
         address[] memory tradePair = new address[](2);
         tradePair[0] = assetToBorrow;
         tradePair[1] = targetTokenOut;
 
-        // if(contractBalancesOfUsdt < amount || contractBalancesOfUsdt == 0) revert FlashLoan_NotEnoughFeeToCoverTxs();
+        if(contractBalanceOfAssets == 0) revert FlashLoan_NotEnoughFeeToCoverTxs();
         if(assetToBorrow == address(0) || amount == 0) revert FlashLoan_NoAssetBeingPassedOrAmountZero();
 
            user[borrower].userTrade.userAddress = borrower;

@@ -20,4 +20,19 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 
     function mintToken() external;
+
+     /**
+     * @dev Returns the name of the token.
+     */
+    function name() external view returns (string memory);
+
+    /**
+     * @dev Returns the symbol of the token.
+     */
+    function symbol() external view returns (string memory);
+
+    /**
+     * @dev Returns the decimals places of the token.
+     */
+    function decimals() external view returns (uint8);
 }
