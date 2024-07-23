@@ -59,9 +59,10 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
     error FlashLoan_InvalidTokenAddress();
     error FlashLoan_NotAllowedToWithdraw();
     error FlashLoan_NotAllowedToTrade();
+    error FlashLoan_OutputZeroOrTooLittle();
 
     // --------------------------- STATE VARIABLES --------------------------------------
-    uint256 private constant PRECISION = 1e6; // six decimal places for USDT
+    uint256 private constant PRECISION = 1e18; // six decimal places for USDT
     uint256 private constant PRECISION_NON_USDT = 1e18; // 18 decimal places for others ERC20
     uint256 private constant MINIMUM_PURCHASING = 500 * PRECISION;
     uint256 private constant THOUSAND = 1000 * PRECISION;
@@ -199,14 +200,14 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
        @param amountToWd - amount of funds to wd
        @return bool - return true if withdrawal went successfully (TESTED)
       */
-     function withdrawFunds(uint256 amountToWd) external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
-        uint256 availableFunds = i_paymentToken.balanceOf(address(this));
+     function withdrawFunds(uint256 amountToWd, address tokenAsset) external OnlyOwner IsValidAddress NotBlacklisted returns(bool) {
+        uint256 availableFunds = IERC20(tokenAsset).balanceOf(address(this));
 
         if(availableFunds == 0) revert FlashLoan_NoFundsAvailable();
         if(amountToWd > availableFunds) revert FlashLoan_WithdrawAmountCannotBeMoreThanBalance("Withdraw amount cannot be more than available balance on this contract");
 
         if(availableFunds > 0) {
-            i_paymentToken.transfer(i_owner, amountToWd);
+            IERC20(tokenAsset).transfer(i_owner, amountToWd);
             emit Withdrawal_Successfull(msg.sender, amountToWd);
             return true;
         }
@@ -340,9 +341,9 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
         @dev supplying an initial funds into this contract to cover borrow asset fee from AAVE
         @param supplyAmount - an amount to supply (TESTED)
      */
-    function supplyInitialFunds(uint256 supplyAmount) external OnlyOwner IsValidAddress returns(bool) {
-        if(supplyAmount == 0 || supplyAmount < INITIAL_FUNDS) revert("PLEASE SUPPLY ATLEAST 5 USDT");
-        i_paymentToken.transferFrom(msg.sender, address(this), supplyAmount);
+    function supplyInitialFunds(uint256 supplyAmount, address asset) external OnlyOwner IsValidAddress returns(bool) {
+        if(supplyAmount <= 0) revert("PLEASE SUPPLY ATLEAST 5 USDT");
+        IERC20(asset).transferFrom(msg.sender, address(this), supplyAmount);
         emit FundsHasBeenSupplied(msg.sender, supplyAmount);
         return true;
     }
@@ -366,6 +367,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
             });
 
         uint256 amountTokenOut = UNISWAP_ROUTERV3.exactInputSingle(params);
+        if(amountTokenOut <= 0) revert FlashLoan_OutputZeroOrTooLittle();
         return (amountTokenOut, tokenOut);
 
     }
@@ -385,6 +387,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase {
                 block.timestamp
             );
 
+        if(amounts[1] <= 0) revert FlashLoan_OutputZeroOrTooLittle();
         return amounts[1];
     }
 

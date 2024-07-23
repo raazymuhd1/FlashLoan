@@ -8,7 +8,7 @@ import { MockPoolAddressesProvider } from "../src/mocks/MockPoolAddrProvider.sol
 contract HelperConfig {
 
     struct Params {
-        address USDT;
+        address DAI;
         address WETH;
         address POOL_ADDRESSES;
         address USER;
@@ -31,7 +31,7 @@ contract HelperConfig {
 
     function polygon() public returns(Params memory) {
          Params memory params = Params({
-            USDT: 0xc2132D05D31c914a87C6611C10748AEb04B58e8F,
+            DAI: 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063, // actually DAI
             WETH: 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619,
             POOL_ADDRESSES: 0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb,
             USER: 0x16590fC840c195742d61DD160C19F3825E820c59
@@ -44,7 +44,7 @@ contract HelperConfig {
     function sepolia() public returns(Params memory) {
         // polygon mumbai 0x4CeDCB57Af02293231BAA9D39354D6BFDFD251e0
         Params memory params = Params({
-            USDT: 0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0,
+            DAI: 0x68194a729C2450ad26072b3D33ADaCbcef39D574,
             WETH: 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9,
             POOL_ADDRESSES: 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A,
             USER: 0xb1B83bC9d243C23b3e884C1cd3F5415e0E484423
@@ -59,7 +59,7 @@ contract HelperConfig {
         MockPoolAddressesProvider mockPoolAddressProvider = new MockPoolAddressesProvider(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
 
         Params memory params = Params({
-            USDT: address(mockErc20),
+            DAI: address(mockErc20),
             WETH: address(mockWeth),
             POOL_ADDRESSES: address(mockPoolAddressProvider),
             USER: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
@@ -70,7 +70,7 @@ contract HelperConfig {
 
     function mainnet() public returns(Params memory) {
         Params memory params = Params({
-            USDT: 0xdAC17F958D2ee523a2206206994597C13D831ec7,
+            DAI: 0xdAC17F958D2ee523a2206206994597C13D831ec7,
             WETH: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             POOL_ADDRESSES: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e,
             USER: 0x70213959A644BaA94840bbfb4129550bceCEB3c2

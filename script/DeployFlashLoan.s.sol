@@ -12,10 +12,10 @@ contract DeployFlashLoan is Script {
 
     address payable REAL_OWNER = payable(0xb1B83bC9d243C23b3e884C1cd3F5415e0E484423);
 
-    function run(address payable flashloanOwner_, address USDT, address POOL_ADDRESSES) external returns(FlashLoan) {
+    function run(address payable flashloanOwner_, address DAI, address POOL_ADDRESSES) external returns(FlashLoan) {
 
         vm.startBroadcast();
-        flashLoan = new FlashLoan(USDT, POOL_ADDRESSES, flashloanOwner_); 
+        flashLoan = new FlashLoan(DAI, POOL_ADDRESSES, flashloanOwner_); 
         vm.stopBroadcast();
 
         return flashLoan;

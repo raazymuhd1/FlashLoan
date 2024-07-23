@@ -24,7 +24,7 @@ contract FlashLoanTest is Test {
     address public WHALE1 = 0x4D8336bDa6C11BD2a805C291Ec719BaeDD10AcB9;
    //  address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     address public ZERO_ADDRESS = address(0);
-    uint256 public PRECISION = 1e6;
+    uint256 public PRECISION = 1e18;
     uint256 public TEST_BUY_AMT = 1000;
     uint256 private constant PROFIT_WD_FEE = 0.001 ether;
     address USDT; 
@@ -49,14 +49,14 @@ contract FlashLoanTest is Test {
 
     function setUp() public {
          helper = new HelperConfig();
-        ( USDT, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
+        ( DAI, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
          UsdtToken = IERC20(USDT);
 
         pricingDeployer = new DeployPricingTable();
         pricing = pricingDeployer.run();
 
         deployer = new DeployFlashLoan();
-        flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
+        flashloan = deployer.run(payable(USER), DAI, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
         vm.deal(ANOTHER_USER, 10 ether);
@@ -77,7 +77,7 @@ contract FlashLoanTest is Test {
 
         vm.startPrank(caller);
       //   UsdtToken.mintToken();
-        UsdtToken.approve(address(flashloan), TEST_BUY_AMT * PRECISION);
+        IERC20(DAI).approve(address(flashloan), TEST_BUY_AMT * PRECISION);
         FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, caller);
         vm.stopPrank();
         _;
@@ -294,7 +294,7 @@ contract FlashLoanTest is Test {
       vm.startPrank(USER);
       UsdtToken.mintToken();
       UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
-      bool success = flashloan.withdrawFunds(100 * PRECISION);
+      bool success = flashloan.withdrawFunds(100 * PRECISION, USDT);
 
       console.log(success);
    }
@@ -303,7 +303,7 @@ contract FlashLoanTest is Test {
       vm.startPrank(USER);
       UsdtToken.mintToken();
       UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
-      bool success = flashloan.withdrawFunds(2000 * PRECISION);
+      bool success = flashloan.withdrawFunds(2000 * PRECISION, USDT);
 
       console.log(success);
    }
@@ -312,14 +312,14 @@ contract FlashLoanTest is Test {
       vm.startPrank(ANOTHER_USER);
       UsdtToken.mintToken();
       UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
-      bool success = flashloan.withdrawFunds(1000 * PRECISION);
+      bool success = flashloan.withdrawFunds(1000 * PRECISION, USDT);
 
       console.log(success);
    }
 
    function test_withdrawFundsZeroAmount() public {
       vm.startPrank(USER);
-      bool success = flashloan.withdrawFunds(2000 * PRECISION);
+      bool success = flashloan.withdrawFunds(2000 * PRECISION, USDT);
       console.log(success);
    }
 
@@ -335,22 +335,25 @@ contract FlashLoanTest is Test {
     // USDT/WMATIC
     // WETH/WMATIC
     // DAI/WETH
+    // DAI/WMATIC
     // WETH/LINK (GOOD LIQ)
     // WETH/USDT (GOOD LIQ)
     // WETH/MANA NOTE (LOW LIQ)
     // WBTC/WMATIC (HIGH GAS FE
 
       vm.startPrank(WHALE1);
-      IERC20(DAI).transfer(address(flashloan), 25 * 1e18);
-    //   993_439_529_542_205_375_985
+      IERC20(DAI).transfer(address(flashloan), 10 * 1e18);
       uint256 beforeTrade = pricing.getTokenPriceInUsd(DAI, testAmt);
-      flashloan.requestLoan(DAI, testAmt, WETH, WHALE1);
+      flashloan.requestLoan(DAI, testAmt, CURV, WHALE1);
       FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE1);
       FlashLoan.User memory user = flashloan.getUserDetails(WHALE1);
       uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
+      uint256 percentage = 1;
 
-       console.log(beforeTrade);
-       console.log(afterTrade - 1e12);
+       console.log(beforeTrade / 100);
+       console.log(afterTrade);
+
+       assert(beforeTrade > afterTrade);
       vm.stopPrank();
    }
 
@@ -415,7 +418,7 @@ contract FlashLoanTest is Test {
        vm.startPrank(USER);
        UsdtToken.mintToken();
        UsdtToken.approve(address(flashloan), amountToSupply);
-       bool funded = flashloan.supplyInitialFunds(amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
        uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
        console.log(funded);
        console.log(contractFunds);
@@ -426,7 +429,7 @@ contract FlashLoanTest is Test {
        vm.startPrank(USER);
        UsdtToken.mintToken();
        UsdtToken.approve(address(flashloan), amountToSupply);
-       bool funded = flashloan.supplyInitialFunds(amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
        uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
        console.log(funded);
        console.log(contractFunds);
@@ -438,7 +441,7 @@ contract FlashLoanTest is Test {
        vm.startPrank(ANOTHER_USER);
        UsdtToken.mintToken();
        UsdtToken.approve(address(flashloan), amountToSupply);
-       bool funded = flashloan.supplyInitialFunds(amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
        uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
        console.log(funded);
        console.log(contractFunds);
@@ -481,7 +484,7 @@ contract FlashLoanTest is Test {
       vm.startPrank(USER);
       UsdtToken.mintToken();
       UsdtToken.approve(address(flashloan), amountToSupply);
-      bool funded = flashloan.supplyInitialFunds(amountToSupply);
+      bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
       uint256 totalFundsAvail = flashloan.getTotalFunds();
       console.log(totalFundsAvail);
       vm.stopPrank();
