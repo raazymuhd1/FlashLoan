@@ -53,7 +53,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
     uint256 private constant TEN_THOUSAND = 10000 * PRECISION;
     uint256 private constant PROFIT_WD_FEE = 0.001 ether;
     uint256 private constant INITIAL_FUNDS = 5 * PRECISION;
-    address payable private immutable i_owner;
+    address private owner;
     IERC20 private immutable i_paymentToken; // payment for purchasing packages (USDT token)
     address private immutable i_poolAddress;
     uint32[] private packagesLists = [500, 1000, 3000, 5000, 10000];
@@ -100,8 +100,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
 
     // ------------------------------------------ CONSTRUCTOR -----------------------------------------------
 
-    constructor(address paymentToken_, address poolAddress_, address payable owner_) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(poolAddress_)) {
-         i_owner = owner_;
+    constructor(address paymentToken_, address poolAddress_, address owner_) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(poolAddress_)) {
+         owner = owner_;
         i_paymentToken = IERC20(paymentToken_);
         i_poolAddress = poolAddress_;
     }
@@ -110,12 +110,12 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
     event Purchasing_Successfull(address user, uint32 packageType);
     event Withdrawal_Successfull(address user, uint256 wdAmount);
     event FundsHasBeenSupplied(address supplier, uint256 supplyAmount);
-    event UserDailyProfitAndTradeReset(address owner);
+    event UserDailyProfitAndTradeReset(address owner_);
 
     // -------------------------------------- MODIFIERS -------------------------------------------------------
 
     modifier OnlyOwner() {
-        require(i_owner == msg.sender , "Only Owner can call");
+        require(owner == msg.sender , "Only Owner can call");
         _;
     }
 
@@ -130,12 +130,12 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
     }
 
     modifier IsRegistered() {
-        if(user[msg.sender].isRegistered == false && msg.sender != i_owner) revert FLashLoan_UserNotRegistered();
+        if(user[msg.sender].isRegistered == false && msg.sender != owner) revert FLashLoan_UserNotRegistered();
         _;
     }
 
     modifier IsWithdrawAllowed() {
-        if(user[msg.sender].isWithdrawAllowed == false && msg.sender != i_owner) revert FlashLoan_NotAllowedToWithdraw();
+        if(user[msg.sender].isWithdrawAllowed == false && msg.sender != owner) revert FlashLoan_NotAllowedToWithdraw();
         _;
     }
 
@@ -143,7 +143,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         uint256 tradeValueInUsd = getTokenPriceInUsd(token, amount);
         User memory user_ = user[msg.sender];
 
-        if(user[msg.sender].isTradeAllowed == false && msg.sender != i_owner) revert FlashLoan_NotAllowedToTrade();
+        if(user[msg.sender].isTradeAllowed == false && msg.sender != owner) revert FlashLoan_NotAllowedToTrade();
         if(tradeValueInUsd > user_.perTradeAmountLimit) revert("Trade: amount to trade above the limit");
         _;
     }
@@ -160,7 +160,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         if(amountToWd > user[msg.sender].totalProfits) revert FlashLoan_CannotWdAboveProfit();
         if(user[msg.sender].totalProfits <= 0) revert FlashLoan_ProfitStillZero(); 
         if(fee < 2 * PRECISION) revert FlashLoan_WithdrawFeeNotEnough();
-        // if(user[msg.sender].totalProfits < 5 * PRECISION) revert("WD: you need to have atleast 5 USDT in profits");
+        if(user[msg.sender].totalProfits < 5 * PRECISION) revert("WD: you need to have atleast 5 USDT in profits");
 
         user[msg.sender].totalProfits -= amountToWd;
         i_paymentToken.transferFrom(msg.sender, address(this), fee);
@@ -181,7 +181,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         if(amountToWd > availableFunds) revert FlashLoan_WithdrawAmountCannotBeMoreThanBalance("Withdraw amount cannot be more than available balance on this contract");
 
         if(availableFunds > 0) {
-            IERC20(tokenAsset).transfer(i_owner, amountToWd);
+            IERC20(tokenAsset).transfer(owner, amountToWd);
             emit Withdrawal_Successfull(msg.sender, amountToWd);
             return true;
         }
@@ -235,6 +235,13 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         return accountBlacklisted[account];
     }
 
+    function purchasePackageByAdmin(uint32 packageTypes_, address toUser_) external IsValidAddress OnlyOwner returns(User memory) {
+        if(toUser_ == address(0)) revert("USER: Invalid user address");
+        if(user[toUser_].isRegistered == true) revert FLashLoan_UserHasBeenRegistered();
+        uint32 typesOfPckg = _packageCheckingForAdmin(packageTypes_, toUser_);
+        emit Purchasing_Successfull(toUser_, typesOfPckg);
+        return user[toUser_];
+     }
 
     /**
     @dev buy package
@@ -249,9 +256,59 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         if(user[msg.sender].isRegistered == true) revert FLashLoan_UserHasBeenRegistered();
         
         i_paymentToken.transferFrom(msg.sender, address(this), amountToPay);
-        uint32 typesOfPckg = _altPackageChecking(packageTypes_, amountToPay);
+        uint32 typesOfPckg = _regularPackageChecking(packageTypes_, amountToPay);
         emit Purchasing_Successfull(msg.sender, typesOfPckg);
         return user[msg.sender];
+     }
+
+
+    function _packageCheckingForAdmin(uint32 packageTypes_, address toUser_) internal returns(uint32) {
+        uint32 typesOfPackage;
+        uint256 monthlyProfitLimit = 0;
+        uint256 perTradeAmountLimit = 0;
+        Packages packageType = Packages.FiveHundreds;
+
+        // payAmount_ ( ex: 10_000_000 usdt (6 decimals) >= MINIMUM_PURCHASING (500_000_000 usdt) 6 decimals )
+        // on the frontend needs to pass an amount * PRECISION (usdt decimals)
+        if(packageTypes_ == packagesLists[0]) {
+            packageType = Packages.FiveHundreds;
+            monthlyProfitLimit = 20;
+            perTradeAmountLimit = 50;
+            typesOfPackage = packagesLists[0];
+
+        } else if(packageTypes_ == packagesLists[1]) {
+            packageType = Packages.Thousands;
+            monthlyProfitLimit = 40;
+            perTradeAmountLimit = 100;
+            typesOfPackage = packagesLists[1];
+        }
+         else if(packageTypes_ == packagesLists[2]) {
+            packageType = Packages.ThreeThousands;
+            monthlyProfitLimit = 120;
+            perTradeAmountLimit = 300;
+            typesOfPackage = packagesLists[2];
+        }
+         else if(packageTypes_ == packagesLists[3]) {
+            packageType = Packages.FiveThousands;
+            monthlyProfitLimit = 200;
+            perTradeAmountLimit = 500;
+            typesOfPackage = packagesLists[3];
+        }
+         else if(packageTypes_ == packagesLists[4]) {
+            packageType = Packages.TenThousands;
+            monthlyProfitLimit = 400;
+            perTradeAmountLimit = 1000;
+            typesOfPackage = packagesLists[4];
+        }
+
+        address[] memory defaultPair = new address[](2);
+        defaultPair[0] = address(0);
+        defaultPair[1] = address(0);
+        UserTrade memory userTrades = UserTrade(toUser_, defaultPair, 0);
+        user[toUser_] = User( 
+             toUser_, 0, monthlyProfitLimit * PRECISION, perTradeAmountLimit * PRECISION, 0, 0, 0, packageType, true, true, true, userTrades); 
+
+        return typesOfPackage;
      }
 
 
@@ -260,7 +317,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         @param packageTypes_ - types of packages user selected
         @param payAmount_ - an amount user needs to pay for user selected packages
       */
-     function _altPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal returns(uint32) {
+     function _regularPackageChecking(uint32 packageTypes_, uint256 payAmount_) internal returns(uint32) {
         uint32 typesOfPackage;
         uint256 monthlyProfitLimit = 0;
         uint256 perTradeAmountLimit = 0;
@@ -509,6 +566,18 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
 
     }
 
+    /**
+        @dev renounce owner
+        @param newOwner - new owner address 
+     */
+    function changeOwner(address newOwner) external OnlyOwner returns(bool) {
+        if(newOwner == address(0)) revert("OWNER: new owner address invalid");
+        owner = newOwner;
+        return true;
+    }
+
+    // ---------------------------------- GETTER FUNCTIONS -------------------------------------------------
+
     function getUserCurrentTrade(address user_) public returns(UserTrade memory) {
         return user[user_].userTrade;
     } 
@@ -538,7 +607,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
 
     // TESTED
     function getOwner() external view returns(address) {
-        return i_owner;
+        return owner;
     }
 
     // TESTED

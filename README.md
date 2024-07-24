@@ -8,4 +8,4 @@
   - owner supply funds (done)
   - owner restrict account from trade, withdraw or register account (done)
   - owner blacklist some account (done)
-  - owner create an account for other user
+  - owner create an account for other user (still on progress)

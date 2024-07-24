@@ -49,7 +49,7 @@ contract FlashLoanTest is Test {
         // pricing = pricingDeployer.run();
 
         deployer = new DeployFlashLoan();
-        flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
+        flashloan = deployer.run(USER, USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
         vm.deal(ANOTHER_USER, 10 ether);
