@@ -8,14 +8,14 @@ import { PricingTable } from "../src/Pricing.sol";
 contract DeployPricingTable is Script {
     PricingTable pricing;
 
-    function run() external returns(PricingTable) {
+    // function run() external returns(PricingTable) {
 
-        vm.startBroadcast();
-            pricing = new PricingTable();
-            console.log(address(pricing));
-        vm.stopBroadcast();
+    //     vm.startBroadcast();
+    //         pricing = new PricingTable();
+    //         console.log(address(pricing));
+    //     vm.stopBroadcast();
 
-        return pricing;
-    }
+    //     return pricing;
+    // }
 
 }

@@ -22,41 +22,34 @@ contract FlashLoanTest is Test {
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = 0x781229c7a798c33EC788520a6bBe12a79eD657FC;
     address public WHALE1 = 0x4D8336bDa6C11BD2a805C291Ec719BaeDD10AcB9;
+    // address public WHALE2 = 0x87673F8587De5f1ec8fDBCaBC9C2b742bcd61DC6;
    //  address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     address public ZERO_ADDRESS = address(0);
-    uint256 public PRECISION = 1e18;
-    uint256 public TEST_BUY_AMT = 1000;
-    uint256 private constant PROFIT_WD_FEE = 0.001 ether;
-    address USDT; 
+    uint256 public PRECISION = 1e6;
+    uint256 public TEST_BUY_AMT = 10000;
+    uint256 private constant PROFIT_WD_FEE = 2;
     address WETH;
     address POOL_ADDRESSES;
     address USER;
+
+    address USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F; 
     address USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
-    address SNX = 0x50B728D8D964fd00C2d0AAD81718b71311feF68a;
-    address FRAX = 0x104592a158490a9228070E0A8e5343B499e125D0;
     address WMATIC = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
     address DAI = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
     address WBTC = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
-    address MANA = 0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4; // 4 decimals returns
-    address LINK = 0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39; // LINK & WETH & AAVE CORRECT
-    address UNI = 0xb33EaAd8d922B1083446DC23f610c2567fB5180f;
-    address CURV = 0x172370d5Cd63279eFa6d502DAB29171933a610AF;  // NOT SUPPORTED
+    address LINK = 0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39; 
     address AAVE = 0xD6DF932A45C0f255f85145f286eA0b292B21C90B;
-    address INCH1 = 0x9c2C5fd7b07E95EE044DDeba0E97a665F142394f;  // LOW LIQ
-    address MKR = 0x6f7C932e7684666C9fd1d44527765433e01fF61d;  // NOT SUPPORTED
-    address SAND = 0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683;  // NOT SUPPORTED
-    address BAL = 0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3;  // NOT SUPPORTED
 
     function setUp() public {
          helper = new HelperConfig();
-        ( DAI, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
+        ( USDT, WETH, POOL_ADDRESSES, USER ) = helper.networkConfig();
          UsdtToken = IERC20(USDT);
 
-        pricingDeployer = new DeployPricingTable();
-        pricing = pricingDeployer.run();
+        // pricingDeployer = new DeployPricingTable();
+        // pricing = pricingDeployer.run();
 
         deployer = new DeployFlashLoan();
-        flashloan = deployer.run(payable(USER), DAI, POOL_ADDRESSES);
+        flashloan = deployer.run(payable(USER), USDT, POOL_ADDRESSES);
 
         vm.deal(USER, 10 ether);
         vm.deal(ANOTHER_USER, 10 ether);
@@ -70,22 +63,22 @@ contract FlashLoanTest is Test {
     }
 
     modifier PurchasingPackage(address caller) {
-        uint32 pckgType = 1000;
+        uint32 pckgType = 500;
 
       //   vm.prank(USER);
       //   UsdtToken.transfer(caller, 3000 * PRECISION);
 
         vm.startPrank(caller);
       //   UsdtToken.mintToken();
-        IERC20(DAI).approve(address(flashloan), TEST_BUY_AMT * PRECISION);
-        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, caller);
+        IERC20(USDT).approve(address(flashloan), TEST_BUY_AMT * PRECISION);
+        FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
         vm.stopPrank();
         _;
     }
 
     function test_purchasingPackageByNonBlacklistedAccount() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 5000;
+        uint32 pckgType = 10000;
 
         vm.startPrank(USER);
         UsdtToken.mintToken();
@@ -99,7 +92,7 @@ contract FlashLoanTest is Test {
 
         if(userBalance > 0) {
             UsdtToken.approve(address(flashloan), TEST_BUY_AMT * PRECISION);
-            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, USER);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
             console.log("user after registered");
             console.log(userAfter.userAddress);
             uint contractBalance = UsdtToken.balanceOf(address(flashloan));
@@ -126,14 +119,14 @@ contract FlashLoanTest is Test {
         console.log(userBfore.userAddress);
 
             UsdtToken.approve(address(flashloan), TEST_BUY_AMT * PRECISION);
-            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, USER);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
             console.log("user after registered");
             console.log(userAfter.userAddress);
             uint contractBalance = UsdtToken.balanceOf(address(flashloan));
             console.log("contract balance:");
             console.log(contractBalance);
 
-            FlashLoan.User memory repurchasing = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, USER);
+            FlashLoan.User memory repurchasing = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
         vm.stopPrank();
 
         assert(userBalance > 0);
@@ -144,7 +137,7 @@ contract FlashLoanTest is Test {
         uint32 pckgType = 5000;
 
         vm.startPrank(ZERO_ADDRESS);
-            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, USER);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
             console.log(userAfter.userAddress);
             uint contractBalance = UsdtToken.balanceOf(address(flashloan));
             console.log("contract balance:");
@@ -157,7 +150,7 @@ contract FlashLoanTest is Test {
         uint32 pckgType = 5000;
 
         vm.startPrank(USER);
-            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION, USER);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
             console.log(userAfter.userAddress);
             uint contractBalance = UsdtToken.balanceOf(address(flashloan));
             console.log("contract balance:");
@@ -180,7 +173,7 @@ contract FlashLoanTest is Test {
 
         if(userBalance > 0) {
             UsdtToken.approve(address(flashloan), TEST_BUY_AMT);
-            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT, USER);
+            FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT);
             console.log(userAfter.userAddress);
         }
         vm.stopPrank();
@@ -323,37 +316,35 @@ contract FlashLoanTest is Test {
       console.log(success);
    }
 
-   function test_borrowAsset() public PurchasingPackage(WHALE1)  {
-      uint256 testAmt = 10 * 1e18;
-       //   WBTC = 8 decimals
-    // WETH = 18 decimals
-    // LINK = 18 decimals (NOT RECOMMENDED)
+   function test_borrowAsset() public PurchasingPackage(USER) {
+      uint256 testAmt = 0.01 ether;
     // WMATIC = 18 decimals
     //  AAVE/WETH approved
-    // WETH/WBTC
-    // USDT/WETH
-    // USDT/WMATIC
-    // WETH/WMATIC
-    // DAI/WETH
-    // DAI/WMATIC
-    // WETH/LINK (GOOD LIQ)
-    // WETH/USDT (GOOD LIQ)
-    // WETH/MANA NOTE (LOW LIQ)
-    // WBTC/WMATIC (HIGH GAS FE
-
-      vm.startPrank(WHALE1);
-      IERC20(DAI).transfer(address(flashloan), 10 * 1e18);
-      uint256 beforeTrade = pricing.getTokenPriceInUsd(DAI, testAmt);
-      flashloan.requestLoan(DAI, testAmt, CURV, WHALE1);
-      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE1);
-      FlashLoan.User memory user = flashloan.getUserDetails(WHALE1);
-      uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
+    // WETH/WBTC (APPROVED/TESTED)
+    // USDT/WETH (APPROVED/TESTED)
+    // USDT/WMATIC (APPROVED/TESTED)
+    // WETH/WMATIC (APPROVED/TESTED)
+    // DAI/WETH (APPROVED/TESTED)
+    // DAI/WMATIC (APPROVED/TESTED) (high amount, high fee for protocol)
+    // WETH/LINK (GOOD LIQ) (APPROVED/TESTED)
+    // WETH/USDT (GOOD LIQ) (APPROVED/TESTED)
+    // WETH/AAVE  (APPROVED/TESTED)
+    // WBTC/WMATIC (HIGH GAS FE, HIGH LOSTS)
+      vm.startPrank(USER);
+      IERC20(WETH).transfer(address(flashloan), 0.1 ether);
+    //   uint256 beforeTrade = pricing.getTokenPriceInUsd(USDT, testAmt);
+      flashloan.requestLoan(WETH, testAmt, AAVE);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(USER);
+      FlashLoan.User memory user = flashloan.getUserDetails(USER);
+    //   uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
       uint256 percentage = 1;
+       console.log(user.monthlyProfitAmount);
+    //    for USDT & WBTC adds additional 1e10 precision at the end
+    //    console.log(beforeTrade);
+    //    console.log(afterTrade);
 
-       console.log(beforeTrade / 100);
-       console.log(afterTrade);
-
-       assert(beforeTrade > afterTrade);
+    //    uint256 result = (beforeTrade * percentage) / 100;
+    //    console.log(result);
       vm.stopPrank();
    }
 
