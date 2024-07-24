@@ -22,8 +22,8 @@ contract FlashLoanTest is Test {
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
     address public ANOTHER_USER = 0x781229c7a798c33EC788520a6bBe12a79eD657FC;
     address public WHALE1 = 0x4D8336bDa6C11BD2a805C291Ec719BaeDD10AcB9;
-    // address public WHALE2 = 0x87673F8587De5f1ec8fDBCaBC9C2b742bcd61DC6;
-   //  address public ANOTHER_USER = makeAddr("ANOTHER_USER");
+    address public WHALE2 = 0x87673F8587De5f1ec8fDBCaBC9C2b742bcd61DC6;
+    // address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     address public ZERO_ADDRESS = address(0);
     uint256 public PRECISION = 1e6;
     uint256 public TEST_BUY_AMT = 10000;
@@ -69,7 +69,7 @@ contract FlashLoanTest is Test {
       //   UsdtToken.transfer(caller, 3000 * PRECISION);
 
         vm.startPrank(caller);
-      //   UsdtToken.mintToken();
+        // UsdtToken.mintToken();
         IERC20(USDT).approve(address(flashloan), TEST_BUY_AMT * PRECISION);
         FlashLoan.User memory user = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
         vm.stopPrank();
@@ -280,28 +280,36 @@ contract FlashLoanTest is Test {
    function test_withdrawProfit() public PurchasingPackage(ANOTHER_USER) {
         uint256 amountToWd = 100 * PRECISION;
         vm.startPrank(ANOTHER_USER);
-        bool withdrew = flashloan.withdrawProfit(amountToWd);
+        bool withdrew = flashloan.withdrawProfit(amountToWd, 3 * PRECISION);
    }
 
    function test_withdrawFundsByOwner() public {
+     uint256 amountToSupply = 0.1 ether;
       vm.startPrank(USER);
-      UsdtToken.mintToken();
-      UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
-      bool success = flashloan.withdrawFunds(100 * PRECISION, USDT);
+    //   UsdtToken.mintToken();
+      IERC20(WETH).approve(address(flashloan), amountToSupply);
+      bool funded = flashloan.supplyInitialFunds(amountToSupply, WETH);
+      vm.stopPrank();
+
+      vm.prank(ANOTHER_USER);
+      bool success = flashloan.withdrawFunds(0.01 ether, WETH);
 
       console.log(success);
    }
 
    function test_withdrawFundsAboveAvailableAmounts() public {
+      uint256 amountToSupply = 100 * PRECISION;
       vm.startPrank(USER);
       UsdtToken.mintToken();
-      UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
+      UsdtToken.approve(address(flashloan), amountToSupply);
+      bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
       bool success = flashloan.withdrawFunds(2000 * PRECISION, USDT);
 
       console.log(success);
    }
 
    function test_withdrawFundsByNonOwner() public {
+      uint256 amountToSupply = 100 * PRECISION;
       vm.startPrank(ANOTHER_USER);
       UsdtToken.mintToken();
       UsdtToken.transfer(address(flashloan), 1000 * PRECISION);
@@ -333,18 +341,21 @@ contract FlashLoanTest is Test {
       vm.startPrank(USER);
       IERC20(WETH).transfer(address(flashloan), 0.1 ether);
     //   uint256 beforeTrade = pricing.getTokenPriceInUsd(USDT, testAmt);
-      flashloan.requestLoan(WETH, testAmt, AAVE);
+      flashloan.requestLoan(WETH, testAmt, USDT);
       FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(USER);
       FlashLoan.User memory user = flashloan.getUserDetails(USER);
     //   uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
       uint256 percentage = 1;
-       console.log(user.monthlyProfitAmount);
     //    for USDT & WBTC adds additional 1e10 precision at the end
     //    console.log(beforeTrade);
     //    console.log(afterTrade);
-
+    UsdtToken.approve(address(flashloan), 3 * PRECISION);
+    bool succeed = flashloan.withdrawProfit(user.totalProfits, 3 * PRECISION);
+    flashloan.resetUserDataMonthly(user.userAddress);
+    FlashLoan.User memory userAfter = flashloan.getUserDetails(USER);
     //    uint256 result = (beforeTrade * percentage) / 100;
     //    console.log(result);
+    console.log(userAfter.monthlyProfitAmount);
       vm.stopPrank();
    }
 
@@ -476,7 +487,7 @@ contract FlashLoanTest is Test {
       UsdtToken.mintToken();
       UsdtToken.approve(address(flashloan), amountToSupply);
       bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
-      uint256 totalFundsAvail = flashloan.getTotalFunds();
+      uint256 totalFundsAvail = flashloan.getTotalFunds(USDT);
       console.log(totalFundsAvail);
       vm.stopPrank();
    }
@@ -488,53 +499,22 @@ contract FlashLoanTest is Test {
       vm.stopPrank();
    }
 
-    function test_uniswap() public {
-    //   WBTC = 8 decimals
-    // WETH = 18 decimals
-    // LINK = 18 decimals
-    // WMATIC = 18 decimals
-    //  AAVE/WETH approved
-    // WETH/WBTC
-    // USDT/WETH
-    // USDT/WMATIC
-    // WETH/WMATIC
-    // WMATIC/AAVE
-    // WETH/LINK (GOOD LIQ)
-    // WETH/USDT (GOOD LIQ)
-    // WETH/MANA NOTE (LOW LIQ)
-    // WBTC/WMATIC (HIGH GAS FEE)
-
-    // BAL, USDT, UNI == NOTE SHOULD BE TAKEN ABOUT THE PRICE
-      uint256 amtIn = 0.01 ether;
-      vm.startPrank(USER);
-    //   UsdtToken.approve(address(flashloan), amtIn);
-      IERC20(WETH).approve(address(flashloan), amtIn);
-      (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(WETH, LINK, amtIn);
-      console.log(amountOut);
-      
-      uint256 outAmt = flashloan._sushiswap(LINK, DAI, amountOut);
-      console.log(outAmt);
-
-
-      vm.stopPrank();
-      
-    }
-
-    // function test_uniswapSecond() public {
+    // function test_uniswap() public {
     //   uint256 amtIn = 0.01 ether;
     //   vm.startPrank(USER);
     // //   UsdtToken.approve(address(flashloan), amtIn);
-    // //   (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(USDT, SAND, amtIn);
-    // //   console.log(amountOut);
-      
     //   IERC20(WETH).approve(address(flashloan), amtIn);
-    //   uint256 outAmt = flashloan._sushiswap(WETH, LINK, amtIn);
+    //   (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(WETH, LINK, amtIn);
+    //   console.log(amountOut);
+      
+    //   uint256 outAmt = flashloan._sushiswap(LINK, DAI, amountOut);
     //   console.log(outAmt);
 
 
     //   vm.stopPrank();
       
     // }
+
 
 }
  

@@ -156,12 +156,14 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         @param amountToWd - amount of their profit wanted to withdraw, only user that has been registered and has profit amount more than 0
         @return withdrew - return true if withdrawal went successfully
      */
-    function withdrawProfit(uint256 amountToWd) external IsValidAddress NotBlacklisted IsRegistered returns(bool withdrew) {
+    function withdrawProfit(uint256 amountToWd, uint256 fee) external IsValidAddress NotBlacklisted IsRegistered returns(bool withdrew) {
         if(amountToWd > user[msg.sender].totalProfits) revert FlashLoan_CannotWdAboveProfit();
         if(user[msg.sender].totalProfits <= 0) revert FlashLoan_ProfitStillZero(); 
-        if(amountToWd < 2 * PRECISION) revert FlashLoan_WithdrawFeeNotEnough();
+        if(fee < 2 * PRECISION) revert FlashLoan_WithdrawFeeNotEnough();
+        // if(user[msg.sender].totalProfits < 5 * PRECISION) revert("WD: you need to have atleast 5 USDT in profits");
 
         user[msg.sender].totalProfits -= amountToWd;
+        i_paymentToken.transferFrom(msg.sender, address(this), fee);
         i_paymentToken.transfer(msg.sender, amountToWd);
         emit Withdrawal_Successfull(msg.sender, amountToWd);
         withdrew = true; 
@@ -312,13 +314,14 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         @param supplyAmount - an amount to supply (TESTED)
      */
     function supplyInitialFunds(uint256 supplyAmount, address asset) external OnlyOwner IsValidAddress returns(bool) {
+        if(asset == address(0)) revert("ASSET: Invalid token asset address");
         if(supplyAmount <= 0) revert("PLEASE SUPPLY ATLEAST 5 USDT");
         IERC20(asset).transferFrom(msg.sender, address(this), supplyAmount);
         emit FundsHasBeenSupplied(msg.sender, supplyAmount);
         return true;
     }
 
-     function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress returns(uint256, address) {
+     function _uniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256, address) {
         if(tokenIn == address(0) || tokenOut == address(0)) revert("TokenIn or Token out is invalid");
         if(amountIn <= 0) revert("AMOUNTIN: amount in should be more than zero");
         // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
@@ -344,7 +347,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
 
     }
 
-    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress returns(uint256) {
+    function _sushiswap(address tokenIn, address tokenOut, uint256 amountIn) internal IsValidAddress returns(uint256) {
         // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         if(tokenIn == address(0) || tokenOut == address(0)) revert("TokenIn or Token out is invalid");
         if(amountIn <= 0) revert("AMOUNTIN: amount in should be more than zero");
@@ -539,8 +542,8 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
     }
 
     // TESTED
-    function getTotalFunds() external view returns(uint256 balance) {
-        balance = i_paymentToken.balanceOf(address(this));
+    function getTotalFunds(address asset) external view returns(uint256 balance) {
+        balance = IERC20(asset).balanceOf(address(this));
     }
 
 
