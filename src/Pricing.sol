@@ -1,8 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
+
+// --------------------------------- Cool Dev ------------------------------------------
+// --------------------------------- -- ------------------------------------------
+// --------------------------------- --- ------------------------------------------
+// --------------------------------- ---- ------------------------------------------
+// --------------------------------- -- ------------------------------------------
+// --------------------------------- ---- ------------------------------------------
+// --------------------------------- PRICING TABLES ------------------------------------------
+
+
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import { IERC20 } from "./interfaces/IERC20.sol";
+
 
 abstract contract PricingTable {
 
@@ -20,6 +31,10 @@ abstract contract PricingTable {
 
     address[] tokenLists = [USDT, WETH, WBTC, DAI, USDC];
 
+    /**
+        @dev function to check for several tokens price
+        @param token - token address that needs to check the price for
+     */
     function checkTokenPrice(address token) internal returns(uint256 tokenPrice) {
         uint256 tokenDecimals = IERC20(token).decimals();
 
@@ -43,6 +58,11 @@ abstract contract PricingTable {
         }
     }
 
+    /**
+        @dev calculate each token amount to token price in USD
+        @param tokenAddress - An address of token u want to check for
+        @param tokenAmount - a token amount 
+     */
     function getTokenPriceInUsd(address tokenAddress, uint256 tokenAmount) internal returns(uint256 priceInUsd) {
         uint256 tokenDecimals = IERC20(tokenAddress).decimals();
         uint256 PRECISION18 = 1e18;
@@ -60,12 +80,20 @@ abstract contract PricingTable {
         }
     }
 
+    /**
+        @dev checking token price for tokens that has 18 decimals
+        @param priceFeed - a chainlink price oracle contract 
+     */
     function _checkingTokenReturnsPrice18Decimals(AggregatorV3Interface priceFeed) internal view returns(uint256 price) {
         uint256 ADDITIONAL_PRECISION = 1e10;
         (, int answer, , ,) = priceFeed.latestRoundData();
         price = uint256(answer) * ADDITIONAL_PRECISION;
     }
 
+    /**
+        @dev checking token price for tokens that has 6 decimals
+        @param priceFeed - a chainlink price oracle contract 
+     */
     function _checkingTokenReturnsPrice6Decimals(AggregatorV3Interface priceFeed) internal view returns(uint256 price) {
         uint256 DIVIDED_PRECISION = 1e2;
         (, int answer, , ,) = priceFeed.latestRoundData();
