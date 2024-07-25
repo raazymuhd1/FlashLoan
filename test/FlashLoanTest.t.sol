@@ -413,13 +413,13 @@ contract FlashLoanTest is Test {
 
 
    function test_supplyingInitialFunds() public {
-       uint256 amountToSupply = 100 * PRECISION;
+       uint256 amountToSupply = 100 * 1e18;
 
        vm.startPrank(USER);
-       UsdtToken.mintToken();
-       UsdtToken.approve(address(flashloan), amountToSupply);
-       bool funded = flashloan.supplyInitialFunds(amountToSupply, USDT);
-       uint256 contractFunds = UsdtToken.balanceOf(address(flashloan));
+    //    UsdtToken.mintToken();
+       IERC20(DAI).approve(address(flashloan), amountToSupply);
+       bool funded = flashloan.supplyInitialFunds(amountToSupply, DAI);
+       uint256 contractFunds = IERC20(DAI).balanceOf(address(flashloan));
        console.log(funded);
        console.log(contractFunds);
    }
