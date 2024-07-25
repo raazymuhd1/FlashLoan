@@ -49,7 +49,7 @@ contract FlashLoanTest is Test {
         // pricing = pricingDeployer.run();
 
         deployer = new DeployFlashLoan();
-        flashloan = deployer.run(USER, USDT, POOL_ADDRESSES);
+        flashloan = deployer.run(USDT, POOL_ADDRESSES, USER);
 
         vm.deal(USER, 10 ether);
         vm.deal(ANOTHER_USER, 10 ether);
@@ -324,7 +324,7 @@ contract FlashLoanTest is Test {
       console.log(success);
    }
 
-   function test_borrowAsset() public PurchasingPackage(USER) {
+   function test_borrowAsset() public PurchasingPackage(WHALE1) {
       uint256 testAmt = 0.01 ether;
     // WMATIC = 18 decimals
     //  AAVE/WETH approved
@@ -338,21 +338,21 @@ contract FlashLoanTest is Test {
     // WETH/USDT (GOOD LIQ) (APPROVED/TESTED)
     // WETH/AAVE  (APPROVED/TESTED)
     // WBTC/WMATIC (HIGH GAS FE, HIGH LOSTS)
-      vm.startPrank(USER);
+      vm.startPrank(WHALE1);
       IERC20(WETH).transfer(address(flashloan), 0.1 ether);
     //   uint256 beforeTrade = pricing.getTokenPriceInUsd(USDT, testAmt);
       flashloan.requestLoan(WETH, testAmt, USDT);
-      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(USER);
-      FlashLoan.User memory user = flashloan.getUserDetails(USER);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE1);
+      FlashLoan.User memory user = flashloan.getUserDetails(WHALE1);
     //   uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
       uint256 percentage = 1;
     //    for USDT & WBTC adds additional 1e10 precision at the end
     //    console.log(beforeTrade);
     //    console.log(afterTrade);
     UsdtToken.approve(address(flashloan), 3 * PRECISION);
-    bool succeed = flashloan.withdrawProfit(user.totalProfits, 3 * PRECISION);
-    flashloan.resetUserDataMonthly(user.userAddress);
-    FlashLoan.User memory userAfter = flashloan.getUserDetails(USER);
+    // bool succeed = flashloan.withdrawProfit(user.totalProfits, 3 * PRECISION);
+    // flashloan.resetUserDataMonthly(user.userAddress);
+    FlashLoan.User memory userAfter = flashloan.getUserDetails(WHALE1);
     //    uint256 result = (beforeTrade * percentage) / 100;
     //    console.log(result);
     console.log(userAfter.monthlyProfitAmount);

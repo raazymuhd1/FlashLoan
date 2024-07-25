@@ -10,12 +10,12 @@ import { HelperConfig } from "./HelperConfig.s.sol";
 contract DeployFlashLoan is Script {
     FlashLoan flashLoan;
 
-    address payable REAL_OWNER = payable(0xb1B83bC9d243C23b3e884C1cd3F5415e0E484423);
+    address REAL_OWNER = 0xb1B83bC9d243C23b3e884C1cd3F5415e0E484423;
 
-    function run(address flashloanOwner_, address USDT, address POOL_ADDRESSES) external returns(FlashLoan) {
+    function run(address USDT, address POOL_ADDR, address flashloanOwner_) external returns(FlashLoan) {
 
         vm.startBroadcast();
-        flashLoan = new FlashLoan(USDT, POOL_ADDRESSES, flashloanOwner_); 
+        flashLoan = new FlashLoan(USDT, POOL_ADDR, flashloanOwner_); 
         vm.stopBroadcast();
 
         return flashLoan;
@@ -24,9 +24,10 @@ contract DeployFlashLoan is Script {
     // function run() external returns(FlashLoan) {
 
     //     vm.startBroadcast();
-    //     flashLoan = new FlashLoan(0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0, 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A, payable(0xb1B83bC9d243C23b3e884C1cd3F5415e0E484423)); 
+    //     flashLoan = new FlashLoan(0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0, 0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A, REAL_OWNER); 
     //     vm.stopBroadcast();
 
     //     return flashLoan;
     // }
+
 }

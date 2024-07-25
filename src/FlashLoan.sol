@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/**
-Package.    Limit                    Profit 
-500$            50$ per trade     20$ (monthly)
-1000$.         100$ per trade.   40$ (monthly)
-3000$.         300$ per trade   120$ (monthly)
-5000$.         500$ per trade    200$ (monthly)
-10000$.       1000$ per day     400$ (monthly)
- */
+// --------------------------------------------- OxOpBytes --------------------------------------------------------
+// --------------------------------- OxOpBytes --------------------------------------------------------------------
+// --------------------------------------------- -----------OxOpBytes ---------------------------------------------
+// ----------------------------------OxOpBytes --------------------------------------------------------------------
+// -------------------------------------------------------- OxOpBytes ---------------------------------------------
+// ----------------------------------OxOpBytes --------------------------------------------------------------------
+// -------------------------------------------------------- OxOpBytes ---------------------------------------------
+// --------------------------------------------- OxOpBytes --------------------------------------------------------
 
 
 import {FlashLoanSimpleReceiverBase} from "@aave-coreV3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
@@ -51,7 +51,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
     uint256 private constant THREE_THOUSAND = 3000 * PRECISION;
     uint256 private constant FIVE_THOUSAND = 5000 * PRECISION;
     uint256 private constant TEN_THOUSAND = 10000 * PRECISION;
-    uint256 private constant PROFIT_WD_FEE = 0.001 ether;
     uint256 private constant INITIAL_FUNDS = 5 * PRECISION;
     address private owner;
     IERC20 private immutable i_paymentToken; // payment for purchasing packages (USDT token)
@@ -63,7 +62,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
     // DEXES ROUTER
     IUniswapV3 private constant UNISWAP_ROUTERV3 = IUniswapV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45); 
     IV2SwapRouter private constant SUSHISWAP_ROUTERV2 = IV2SwapRouter(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506); 
-    IV2SwapRouter private constant QUICKSWAP_ROUTERV2 = IV2SwapRouter(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff); 
 
     // ------------------------ MAPPINGS ----------------------------------------
     mapping(address => User) private user;
@@ -193,7 +191,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         @dev reset daily data of user (daily profit, daily trade) tobe 0 after 24 hours
         @param account - a user address that needs tobe reset
      */
-    function resetUserDataMonthly(address account) external OnlyOwner IsValidAddress NotBlacklisted returns(User memory) {
+    function resetUserDataMonthly(address account) internal OnlyOwner IsValidAddress NotBlacklisted returns(User memory) {
         User memory currentUser = user[account];
         if(currentUser.isRegistered == true && currentUser.monthlyProfitAmount > 0) {
             user[account].monthlyProfitAmount = 0;
@@ -268,8 +266,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         uint256 perTradeAmountLimit = 0;
         Packages packageType = Packages.FiveHundreds;
 
-        // payAmount_ ( ex: 10_000_000 usdt (6 decimals) >= MINIMUM_PURCHASING (500_000_000 usdt) 6 decimals )
-        // on the frontend needs to pass an amount * PRECISION (usdt decimals)
         if(packageTypes_ == packagesLists[0]) {
             packageType = Packages.FiveHundreds;
             monthlyProfitLimit = 20;
@@ -423,36 +419,6 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
 
         if(amounts[1] <= 0) revert FlashLoan_OutputZeroOrTooLittle();
         return amounts[1];
-    }
-
-    function quickSwap(address tokenIn, address tokenOut, uint256 amountIn) public IsValidAddress NotBlacklisted returns(uint256){
-       
-        IERC20(tokenIn).approve(address(QUICKSWAP_ROUTERV2), amountIn);
-        address[] memory path = new address[](2);
-        path[0] = tokenIn;
-        path[1] = tokenOut; 
-        uint256[] memory  amounts = QUICKSWAP_ROUTERV2.swapExactTokensForTokens(
-                amountIn,
-                0,
-                path,
-                address(this),
-                block.timestamp
-            );
-
-        // IV2SwapRouter.ExactInputSingleParams memory params =
-        //     IV2SwapRouter.ExactInputSingleParams({
-        //         tokenIn: tokenIn,
-        //         tokenOut: tokenOut,
-        //         recipient: address(this),
-        //         deadline: block.timestamp,
-        //         amountIn: amountIn,
-        //         amountOutMinimum: 1,
-        //         limitSqrtPrice: 0
-        //     });
-        // uint256 amountTokenOut = QUICKSWAP_ROUTERV2.exactInputSingle(params);
-
-        return amounts[1];
-        
     }
 
 
