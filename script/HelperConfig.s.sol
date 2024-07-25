@@ -34,7 +34,7 @@ contract HelperConfig {
             USDT: 0xc2132D05D31c914a87C6611C10748AEb04B58e8F, // actually USDT
             WETH: 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619,
             POOL_ADDRESSES: 0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb,
-            USER: 0x781229c7a798c33EC788520a6bBe12a79eD657FC
+            USER: 0x16590fC840c195742d61DD160C19F3825E820c59
         });
         
         return params;  

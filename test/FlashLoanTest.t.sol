@@ -20,10 +20,10 @@ contract FlashLoanTest is Test {
 
     // address public USER = makeAddr("USER");
     address public BLACKLISTED_USER = makeAddr("Blacklisted");
-    address public ANOTHER_USER = 0x781229c7a798c33EC788520a6bBe12a79eD657FC;
+    // address public ANOTHER_USER = 0x781229c7a798c33EC788520a6bBe12a79eD657FC;
     address public WHALE1 = 0x4D8336bDa6C11BD2a805C291Ec719BaeDD10AcB9;
     address public WHALE2 = 0x87673F8587De5f1ec8fDBCaBC9C2b742bcd61DC6;
-    // address public ANOTHER_USER = makeAddr("ANOTHER_USER");
+    address public ANOTHER_USER = makeAddr("ANOTHER_USER");
     address public ZERO_ADDRESS = address(0);
     uint256 public PRECISION = 1e6;
     uint256 public TEST_BUY_AMT = 10000;
@@ -63,7 +63,7 @@ contract FlashLoanTest is Test {
     }
 
     modifier PurchasingPackage(address caller) {
-        uint32 pckgType = 500;
+        uint32 pckgType = 10000;
 
       //   vm.prank(USER);
       //   UsdtToken.transfer(caller, 3000 * PRECISION);
@@ -78,15 +78,15 @@ contract FlashLoanTest is Test {
 
     function test_purchasingPackageByNonBlacklistedAccount() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 10000;
+        uint32 pckgType = 500;
 
-        vm.startPrank(USER);
+        vm.startPrank(ANOTHER_USER);
         UsdtToken.mintToken();
-        uint256 userBalance = UsdtToken.balanceOf(USER);
+        uint256 userBalance = UsdtToken.balanceOf(ANOTHER_USER);
         console.log("USDT Balance of this user:");
         console.log(userBalance);
 
-        FlashLoan.User memory userBfore = flashloan.getUserDetails(USER);
+        FlashLoan.User memory userBfore = flashloan.getUserDetails(ANOTHER_USER);
         console.log("user before registered");
         console.log(userBfore.userAddress);
 
@@ -106,15 +106,15 @@ contract FlashLoanTest is Test {
 
      function test_purchasingPackageByRegisteredUser() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 5000;
+        uint32 pckgType = 500;
 
-        vm.startPrank(USER);
+        vm.startPrank(ANOTHER_USER);
         UsdtToken.mintToken();
-        uint256 userBalance = UsdtToken.balanceOf(USER);
+        uint256 userBalance = UsdtToken.balanceOf(ANOTHER_USER);
         console.log("USDT Balance of this user:");
         console.log(userBalance);
 
-        FlashLoan.User memory userBfore = flashloan.getUserDetails(USER);
+        FlashLoan.User memory userBfore = flashloan.getUserDetails(ANOTHER_USER);
         console.log("user before registered");
         console.log(userBfore.userAddress);
 
@@ -134,7 +134,7 @@ contract FlashLoanTest is Test {
 
      function test_purchasingPackageZeroAddress() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 5000;
+        uint32 pckgType = 500;
 
         vm.startPrank(ZERO_ADDRESS);
             FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
@@ -147,7 +147,7 @@ contract FlashLoanTest is Test {
 
      function test_purchasingPackageWithZeroBalance() public {
         uint256 amount_ = 10;
-        uint32 pckgType = 5000;
+        uint32 pckgType = 500;
 
         vm.startPrank(USER);
             FlashLoan.User memory userAfter = flashloan.purchasePackage(pckgType, TEST_BUY_AMT * PRECISION);
@@ -239,7 +239,7 @@ contract FlashLoanTest is Test {
         assert(restricted == true);
    }
 
-   function test_restrictNonRegisteredAccount() public {
+   function test_restrictAccountNonRegisteredAccount() public {
         bool tradeAllowed = false;
         bool withdrawAllowed = false;
 
@@ -257,7 +257,7 @@ contract FlashLoanTest is Test {
         assert(restricted == true);
    }
 
-    function test_restrictRestrictedAccount() public PurchasingPackage(ANOTHER_USER) {
+    function test_restrictAccountByRestrictedAccount() public PurchasingPackage(ANOTHER_USER) {
         bool tradeAllowed = false;
         bool withdrawAllowed = false;
 
@@ -289,10 +289,9 @@ contract FlashLoanTest is Test {
     //   UsdtToken.mintToken();
       IERC20(WETH).approve(address(flashloan), amountToSupply);
       bool funded = flashloan.supplyInitialFunds(amountToSupply, WETH);
-      vm.stopPrank();
 
-      vm.prank(ANOTHER_USER);
       bool success = flashloan.withdrawFunds(0.01 ether, WETH);
+      vm.stopPrank();
 
       console.log(success);
    }
@@ -318,14 +317,14 @@ contract FlashLoanTest is Test {
       console.log(success);
    }
 
-   function test_withdrawFundsZeroAmount() public {
+   function test_withdrawFundsByZeroAmount() public {
       vm.startPrank(USER);
       bool success = flashloan.withdrawFunds(2000 * PRECISION, USDT);
       console.log(success);
    }
 
    function test_borrowAsset() public PurchasingPackage(WHALE1) {
-      uint256 testAmt = 0.01 ether;
+      uint256 testAmt = 0.3 ether;
     // WMATIC = 18 decimals
     //  AAVE/WETH approved
     // WETH/WBTC (APPROVED/TESTED)
@@ -341,7 +340,7 @@ contract FlashLoanTest is Test {
       vm.startPrank(WHALE1);
       IERC20(WETH).transfer(address(flashloan), 0.1 ether);
     //   uint256 beforeTrade = pricing.getTokenPriceInUsd(USDT, testAmt);
-      flashloan.requestLoan(WETH, testAmt, USDT);
+      flashloan.requestLoan(WETH, testAmt, LINK);
       FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE1);
       FlashLoan.User memory user = flashloan.getUserDetails(WHALE1);
     //   uint256 afterTrade = pricing.getTokenPriceInUsd(DAI, user.dailyProfitAmount);
@@ -349,9 +348,9 @@ contract FlashLoanTest is Test {
     //    for USDT & WBTC adds additional 1e10 precision at the end
     //    console.log(beforeTrade);
     //    console.log(afterTrade);
-    UsdtToken.approve(address(flashloan), 3 * PRECISION);
-    // bool succeed = flashloan.withdrawProfit(user.totalProfits, 3 * PRECISION);
-    // flashloan.resetUserDataMonthly(user.userAddress);
+    IERC20(USDT).approve(address(flashloan), 3 * PRECISION);
+    bool succeed = flashloan.withdrawProfit(user.totalProfits, 3 * PRECISION);
+    flashloan.resetUserDataMonthly(user.userAddress);
     FlashLoan.User memory userAfter = flashloan.getUserDetails(WHALE1);
     //    uint256 result = (beforeTrade * percentage) / 100;
     //    console.log(result);
@@ -360,58 +359,57 @@ contract FlashLoanTest is Test {
    }
 
 
-   // function test_borrowAssetByUserNotAllowedToTrade() public PurchasingPackage(ANOTHER_USER) {
-   //    bool tradeAllowed = false;
-   //    bool withdrawAllowed = false;
-   //    uint256 testAmt = 40 * PRECISION;
+   function test_borrowAssetByUserNotAllowedToTrade() public PurchasingPackage(WHALE1) {
+      bool tradeAllowed = false;
+      bool withdrawAllowed = false;
+      uint256 testAmt = 0.3 ether;
 
-   //    vm.prank(USER);
-   //    bool restricted = flashloan.restrictAccountActions(ANOTHER_USER, tradeAllowed, withdrawAllowed);
+      vm.startPrank(USER);
+      IERC20(WETH).approve(address(flashloan), 0.01 ether);
+      flashloan.supplyInitialFunds(0.01 ether, WETH);
+      vm.stopPrank();
 
-   //    vm.startPrank(ANOTHER_USER);
-   //    flashloan.requestLoan(USDT, testAmt, INCH1, ANOTHER_USER);
-   //    FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(ANOTHER_USER);
-   //    FlashLoan.User memory user = flashloan.getUserDetails(ANOTHER_USER);
-   //  //   console.log("user trade"); 39_799_479
-   //    console.log(userTrade.userAddress);
-   //    console.log(user.dailyProfitAmount);
-   //    console.log(user.dailyTradeAmount);
-   //    console.log(user.totalTrades);
+      vm.startPrank(WHALE1);
+      flashloan.requestLoan(WETH, testAmt, WMATIC);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(WHALE2);
+      FlashLoan.User memory user = flashloan.getUserDetails(WHALE2);
+    //   console.log("user trade"); 39_799_479
+      console.log(userTrade.userAddress);
+      vm.stopPrank();
 
-   //    bool withdrew = flashloan.withdrawProfit{value: PROFIT_WD_FEE}(user.dailyProfitAmount);
-   //    vm.stopPrank();
-   // }
+      vm.prank(USER);
+      bool restricted = flashloan.restrictAccountActions(WHALE1, tradeAllowed, withdrawAllowed);
+
+      vm.startPrank(WHALE1);
+      IERC20(USDT).approve(address(flashloan), 3 * PRECISION);
+      bool withdrew = flashloan.withdrawProfit(user.monthlyProfitAmount, 3 * PRECISION);
+      vm.stopPrank();
+   }
 
 
-   // function test_borrowAssetByNotRegisteredUser() public {
-   //    uint256 testAmt = 40 * PRECISION;
-   //    vm.startPrank(ANOTHER_USER);
-   //    flashloan.requestLoan(USDT, testAmt, INCH1, ANOTHER_USER);
-   //    FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(ANOTHER_USER);
-   //    FlashLoan.User memory user = flashloan.getUserDetails(ANOTHER_USER);
-   //  //   console.log("user trade"); 39_799_479
-   //    console.log(userTrade.userAddress);
-   //    console.log(user.dailyProfitAmount);
-   //    console.log(user.dailyTradeAmount);
-   //    console.log(user.totalTrades);
-   //    vm.stopPrank();
-   // }
+   function test_borrowAssetByNotRegisteredUser() public {
+      uint256 testAmt = 40 * PRECISION;
+      vm.startPrank(ANOTHER_USER);
+      flashloan.requestLoan(USDT, testAmt, WMATIC);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(ANOTHER_USER);
+      FlashLoan.User memory user = flashloan.getUserDetails(ANOTHER_USER);
+    //   console.log("user trade"); 39_799_479
+      console.log(userTrade.userAddress);
+      vm.stopPrank();
+   }
 
-   // function test_borrowAssetByBlacklistedAccount() public PurchasingPackage(BLACKLISTED_USER) {
-   //    uint256 testAmt = 40 * PRECISION;
-   //    vm.prank(USER);
-   //    bool isBlacklisted = flashloan.blacklistAccounts(BLACKLISTED_USER);
-   //    vm.startPrank(BLACKLISTED_USER);
-   //    flashloan.requestLoan(USDT, testAmt, INCH1, BLACKLISTED_USER);
-   //    FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(BLACKLISTED_USER);
-   //    FlashLoan.User memory user = flashloan.getUserDetails(BLACKLISTED_USER);
-   //  //   console.log("user trade"); 39_799_479
-   //    console.log(userTrade.userAddress);
-   //    console.log(user.dailyProfitAmount);
-   //    console.log(user.dailyTradeAmount);
-   //    console.log(user.totalTrades);
-   //    vm.stopPrank();
-   // }
+   function test_borrowAssetByBlacklistedAccount() public PurchasingPackage(BLACKLISTED_USER) {
+      uint256 testAmt = 40 * PRECISION;
+      vm.prank(USER);
+      bool isBlacklisted = flashloan.blacklistAccounts(BLACKLISTED_USER);
+      vm.startPrank(BLACKLISTED_USER);
+      flashloan.requestLoan(USDT, testAmt, WETH);
+      FlashLoan.UserTrade memory userTrade = flashloan.getUserCurrentTrade(BLACKLISTED_USER);
+      FlashLoan.User memory user = flashloan.getUserDetails(BLACKLISTED_USER);
+    //   console.log("user trade"); 39_799_479
+      console.log(userTrade.userAddress);
+      vm.stopPrank();
+   }
 
 
    function test_supplyingInitialFunds() public {
@@ -498,23 +496,6 @@ contract FlashLoanTest is Test {
       console.log(owner);
       vm.stopPrank();
    }
-
-    // function test_uniswap() public {
-    //   uint256 amtIn = 0.01 ether;
-    //   vm.startPrank(USER);
-    // //   UsdtToken.approve(address(flashloan), amtIn);
-    //   IERC20(WETH).approve(address(flashloan), amtIn);
-    //   (uint256 amountOut, address tokenOut) = flashloan._uniswapV3(WETH, LINK, amtIn);
-    //   console.log(amountOut);
-      
-    //   uint256 outAmt = flashloan._sushiswap(LINK, DAI, amountOut);
-    //   console.log(outAmt);
-
-
-    //   vm.stopPrank();
-      
-    // }
-
 
 }
  

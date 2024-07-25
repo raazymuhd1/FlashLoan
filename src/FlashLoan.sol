@@ -155,6 +155,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         @return withdrew - return true if withdrawal went successfully
      */
     function withdrawProfit(uint256 amountToWd, uint256 fee) external IsValidAddress NotBlacklisted IsRegistered returns(bool withdrew) {
+        if(user[msg.sender].isWithdrawAllowed == false) revert("Withdrawal: This address has been restricted and is not allowed to withdraw");
         if(amountToWd > user[msg.sender].totalProfits) revert FlashLoan_CannotWdAboveProfit();
         if(user[msg.sender].totalProfits <= 0) revert FlashLoan_ProfitStillZero(); 
         if(fee < 2 * PRECISION) revert FlashLoan_WithdrawFeeNotEnough();
@@ -191,7 +192,7 @@ contract FlashLoan is FlashLoanSimpleReceiverBase, PricingTable {
         @dev reset daily data of user (daily profit, daily trade) tobe 0 after 24 hours
         @param account - a user address that needs tobe reset
      */
-    function resetUserDataMonthly(address account) internal OnlyOwner IsValidAddress NotBlacklisted returns(User memory) {
+    function resetUserDataMonthly(address account) external OnlyOwner IsValidAddress NotBlacklisted returns(User memory) {
         User memory currentUser = user[account];
         if(currentUser.isRegistered == true && currentUser.monthlyProfitAmount > 0) {
             user[account].monthlyProfitAmount = 0;
